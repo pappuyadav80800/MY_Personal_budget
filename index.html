@@ -2519,7 +2519,7 @@ async function initApp() {
         syncYearFromDate('expenseDate', 'expenseYear');
 
         // Check if API URL is configured
-        if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE') {
+        if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === '') {
             setLoading(false);
             setSyncStatus('error');
             showToast(
