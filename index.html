@@ -1734,71 +1734,7 @@
 
     </div>
     <!-- END REPORTS TAB -->
-<!-- ===== EDIT INCOME MODAL ===== -->
-<div class="modal-overlay" id="editIncomeModal">
-    <div class="modal-box">
-        <div class="modal-header">
-            <span class="modal-title">✏️ Edit Income</span>
-            <button class="modal-close" onclick="closeEditIncomeModal()">✕</button>
-        </div>
-        <div class="modal-body">
-            <form id="editIncomeForm" onsubmit="submitEditIncome(event)">
-                <input type="hidden" id="editIncomeId">
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label class="form-label">Date <span>*</span></label>
-                        <input type="date" class="form-control" id="editIncomeDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Year <span>*</span></label>
-                        <select class="form-control" id="editIncomeYear" required></select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Category <span>*</span></label>
-                        <select class="form-control" id="editIncomeCategory" required>
-                            <option value="">-- Select Category --</option>
-                            <option value="Salary">Salary</option>
-                            <option value="Business">Business</option>
-                            <option value="Freelance">Freelance</option>
-                            <option value="Bonus">Bonus</option>
-                            <option value="Interest">Interest</option>
-                            <option value="Rental">Rental</option>
-                            <option value="Investment">Investment</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Amount (₹) <span>*</span></label>
-                        <input type="number" class="form-control" id="editIncomeAmount"
-                               placeholder="0.00" min="0" step="0.01" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">EBITDA (₹)</label>
-                        <input type="number" class="form-control" id="editIncomeEbitda"
-                               placeholder="0.00" step="0.01">
-                    </div>
-                    <div class="form-group full-width">
-                        <label class="form-label">Description <span>*</span></label>
-                        <input type="text" class="form-control" id="editIncomeDescription"
-                               placeholder="Description" maxlength="200" required>
-                    </div>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-success" id="updateIncomeBtn">
-                        💾 Update Income
-                    </button>
-                    <button type="button" class="btn btn-outline" onclick="closeEditIncomeModal()">
-                        ❌ Cancel
-                    </button>
-                </div>
-                <div class="alert alert-error" id="editIncomeError">
-                    <span>❌</span>
-                    <span id="editIncomeErrorMsg">Something went wrong.</span>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+
 
 </main>
 <!-- END MAIN -->
@@ -3037,113 +2973,11 @@ async function initApp() {
 // ============================================================
 // EDIT INCOME MODAL LOGIC
 // ============================================================
-function openEditIncomeModal(item) {
-    document.getElementById('editIncomeId').value          = item.id;
-    document.getElementById('editIncomeDate').value        = item.date;
-    document.getElementById('editIncomeDescription').value = item.description;
-    document.getElementById('editIncomeAmount').value      = item.amount;
-    document.getElementById('editIncomeEbitda').value      =
-        (item.ebitda !== '' && item.ebitda !== undefined && item.ebitda !== null) ? item.ebitda : '';
 
-    // Populate year dropdown (reuse existing years list)
-    const yearEl = document.getElementById('editIncomeYear');
-    const sourceYearEl = document.getElementById('incomeYear');
-    yearEl.innerHTML = sourceYearEl.innerHTML;
-    yearEl.value = item.year;
 
-    // Set category
-    document.getElementById('editIncomeCategory').value = item.category;
 
-    document.getElementById('editIncomeModal').classList.add('show');
-}
 
-function closeEditIncomeModal() {
-    document.getElementById('editIncomeModal').classList.remove('show');
-    document.getElementById('editIncomeForm').reset();
-    document.getElementById('editIncomeError').classList.remove('show');
-}
 
-async function submitEditIncome(event) {
-    event.preventDefault();
-
-    const btn = document.getElementById('updateIncomeBtn');
-    const id  = document.getElementById('editIncomeId').value;
-
-    const date        = document.getElementById('editIncomeDate').value.trim();
-    const year        = document.getElementById('editIncomeYear').value;
-    const category    = document.getElementById('editIncomeCategory').value;
-    const amount      = parseFloat(document.getElementById('editIncomeAmount').value);
-    const description = document.getElementById('editIncomeDescription').value.trim();
-    const ebitdaRaw    = document.getElementById('editIncomeEbitda').value;
-    const ebitda       = ebitdaRaw === '' ? '' : parseFloat(ebitdaRaw);
-
-    if (!date || !year || !category || !description || isNaN(amount) || amount <= 0) {
-        showAlert('editIncomeError', 'editIncomeErrorMsg',
-            'Please fill all fields correctly. Amount must be greater than 0.', 'error');
-        return;
-    }
-
-    const monthNum  = getMonthFromDate(date);
-    const monthName = MONTHS[monthNum - 1];
-
-    btn.disabled = true;
-    btn.textContent = '⏳ Updating...';
-    setSyncStatus('syncing');
-
-    try {
-        const response = await callAPI({
-            action     : 'updateIncome',
-            id         : id,
-            date       : date,
-            year       : year,
-            description: description,
-            category   : category,
-            amount     : amount,
-            month      : monthName,
-            monthNum   : monthNum,
-            ebitda     : ebitda
-        });
-
-        if (response.status === 'success') {
-            // Update local data
-            const idx = allIncomeData.findIndex(item => String(item.id) === String(id));
-            if (idx !== -1) {
-                allIncomeData[idx] = {
-                    ...allIncomeData[idx],
-                    date       : date,
-                    year       : parseInt(year),
-                    description: description,
-                    category   : category,
-                    amount     : amount,
-                    month      : monthName,
-                    monthNum   : monthNum,
-                    ebitda     : ebitda
-                };
-            }
-
-            showToast('Income updated successfully!', 'success');
-            closeEditIncomeModal();
-
-            updateDashboard();
-            renderIncomeTable();
-            generateReport();
-            setSyncStatus('ok');
-
-        } else {
-            throw new Error(response.message || 'Failed to update income');
-        }
-
-    } catch (err) {
-        setSyncStatus('error');
-        console.error('Update income error:', err);
-        showAlert('editIncomeError', 'editIncomeErrorMsg',
-            'Error: ' + err.message, 'error');
-        showToast('Failed to update income: ' + err.message, 'error');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '💾 Update Income';
-    }
-}
 
 // Start app when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
