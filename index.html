@@ -1098,6 +1098,97 @@
             .login-box { padding: 32px 24px; }
             .login-logo .icon { width: 54px; height: 54px; font-size: 26px; }
         }
+        /* ===== EDIT MODAL ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15,23,42,0.6);
+            z-index: 1500;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-box {
+            background: white;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            animation: modalPop 0.25s ease;
+        }
+
+        @keyframes modalPop {
+            from { opacity: 0; transform: scale(0.94) translateY(10px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            background: white;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .modal-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .modal-close {
+            background: var(--bg);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            color: var(--gray);
+            transition: background 0.2s;
+        }
+
+        .modal-close:hover {
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .btn-edit {
+            background: none;
+            border: none;
+            color: var(--primary);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            transition: background 0.2s;
+            margin-right: 4px;
+        }
+
+        .btn-edit:hover {
+            background: var(--primary-light);
+        }
+
+        @media (max-width: 480px) {
+            .modal-box { max-width: 100%; }
+            .modal-body { padding: 18px; }
+        }
 
     </style>
 </head>
@@ -1351,6 +1442,12 @@
                             <input type="number" class="form-control" id="incomeAmount"
                                    placeholder="0.00" min="0" step="0.01" required>
                         </div>
+                        <div class="form-group">
+    <label class="form-label">EBITDA (₹) <span style="color:#94a3b8; font-size:11px;">(optional)</span></label>
+    <input type="number" class="form-control" id="incomeEbitda"
+           placeholder="0.00" step="0.01">
+</div>
+
                         <div class="form-group full-width">
                             <label class="form-label">Description <span>*</span></label>
                             <input type="text" class="form-control" id="incomeDescription"
@@ -1394,18 +1491,20 @@
             <div class="card-body" style="padding:0;">
                 <div class="table-wrapper">
                     <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Date</th>
-                                <th>Year</th>
-                                <th>Description</th>
-                                <th>Category</th>
-                                <th>Amount</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="incomeTableBody">
+                       <thead>
+    <tr>
+        <th>#</th>
+        <th>Date</th>
+        <th>Year</th>
+        <th>Description</th>
+        <th>Category</th>
+        <th>Amount</th>
+        <th>EBITDA</th>
+        <th>Action</th>
+    </tr>
+</thead>
+<tbody id="incomeTableBody">
+
                             <tr>
                                 <td colspan="7">
                                     <div class="empty-state">
@@ -1635,6 +1734,71 @@
 
     </div>
     <!-- END REPORTS TAB -->
+<!-- ===== EDIT INCOME MODAL ===== -->
+<div class="modal-overlay" id="editIncomeModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-title">✏️ Edit Income</span>
+            <button class="modal-close" onclick="closeEditIncomeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="editIncomeForm" onsubmit="submitEditIncome(event)">
+                <input type="hidden" id="editIncomeId">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Date <span>*</span></label>
+                        <input type="date" class="form-control" id="editIncomeDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Year <span>*</span></label>
+                        <select class="form-control" id="editIncomeYear" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category <span>*</span></label>
+                        <select class="form-control" id="editIncomeCategory" required>
+                            <option value="">-- Select Category --</option>
+                            <option value="Salary">Salary</option>
+                            <option value="Business">Business</option>
+                            <option value="Freelance">Freelance</option>
+                            <option value="Bonus">Bonus</option>
+                            <option value="Interest">Interest</option>
+                            <option value="Rental">Rental</option>
+                            <option value="Investment">Investment</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Amount (₹) <span>*</span></label>
+                        <input type="number" class="form-control" id="editIncomeAmount"
+                               placeholder="0.00" min="0" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">EBITDA (₹)</label>
+                        <input type="number" class="form-control" id="editIncomeEbitda"
+                               placeholder="0.00" step="0.01">
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label">Description <span>*</span></label>
+                        <input type="text" class="form-control" id="editIncomeDescription"
+                               placeholder="Description" maxlength="200" required>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-success" id="updateIncomeBtn">
+                        💾 Update Income
+                    </button>
+                    <button type="button" class="btn btn-outline" onclick="closeEditIncomeModal()">
+                        ❌ Cancel
+                    </button>
+                </div>
+                <div class="alert alert-error" id="editIncomeError">
+                    <span>❌</span>
+                    <span id="editIncomeErrorMsg">Something went wrong.</span>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 </main>
 <!-- END MAIN -->
@@ -2028,6 +2192,9 @@ async function refreshAllData() {
 // ============================================================
 // SUBMIT INCOME
 // ============================================================
+// ============================================================
+// SUBMIT INCOME
+// ============================================================
 async function submitIncome(event) {
     event.preventDefault();
 
@@ -2039,6 +2206,8 @@ async function submitIncome(event) {
     const category    = document.getElementById('incomeCategory').value;
     const amount      = parseFloat(document.getElementById('incomeAmount').value);
     const description = document.getElementById('incomeDescription').value.trim();
+    const ebitdaRaw    = document.getElementById('incomeEbitda').value;
+    const ebitda       = ebitdaRaw === '' ? '' : parseFloat(ebitdaRaw);
 
     // Validation
     if (!date || !year || !category || !description || isNaN(amount) || amount <= 0) {
@@ -2066,7 +2235,8 @@ async function submitIncome(event) {
             category   : category,
             amount     : amount,
             month      : monthName,
-            monthNum   : monthNum
+            monthNum   : monthNum,
+            ebitda     : ebitda
         });
 
         if (response.status === 'success') {
@@ -2079,8 +2249,9 @@ async function submitIncome(event) {
                 category   : category,
                 amount     : amount,
                 month      : monthName,
-                               monthNum   : monthNum,
-                timestamp  : new Date().toISOString()
+                monthNum   : monthNum,
+                timestamp  : new Date().toISOString(),
+                ebitda     : ebitda
             });
 
             // Show success
@@ -2112,6 +2283,7 @@ async function submitIncome(event) {
         btn.textContent = '➕ Add Income';
     }
 }
+
 
 // ============================================================
 // SUBMIT EXPENSE
@@ -2207,6 +2379,7 @@ async function submitExpense(event) {
 function resetIncomeForm() {
     document.getElementById('incomeForm').reset();
     setDefaultDates();
+    document.getElementById('incomeEbitda').value = '';
     // Reset year to current year
     const currentYear = new Date().getFullYear();
     const yearEl = document.getElementById('incomeYear');
@@ -2217,6 +2390,7 @@ function resetIncomeForm() {
         }
     }
 }
+
 
 function resetExpenseForm() {
     document.getElementById('expenseForm').reset();
@@ -2398,6 +2572,9 @@ function renderRecentExpense(data) {
 // ============================================================
 // RENDER INCOME TABLE (Full List)
 // ============================================================
+// ============================================================
+// RENDER INCOME TABLE (Full List)
+// ============================================================
 function renderIncomeTable() {
     const tbody      = document.getElementById('incomeTableBody');
     const yearFilter = document.getElementById('incomeListYearFilter').value;
@@ -2415,7 +2592,7 @@ function renderIncomeTable() {
     data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7">
+        tbody.innerHTML = `<tr><td colspan="8">
             <div class="empty-state">
                 <span class="empty-state-icon">💰</span>
                 <h3>No Income Records</h3>
@@ -2429,6 +2606,9 @@ function renderIncomeTable() {
 
     data.forEach((item, index) => {
         totalAmount += parseFloat(item.amount) || 0;
+        const ebitdaDisplay = (item.ebitda !== '' && item.ebitda !== undefined && item.ebitda !== null)
+            ? formatINR(item.ebitda) : '—';
+
         rows += `
             <tr>
                 <td>${index + 1}</td>
@@ -2440,7 +2620,11 @@ function renderIncomeTable() {
                 </td>
                 <td><span class="badge badge-income">${sanitizeText(item.category)}</span></td>
                 <td class="amount-positive">${formatINR(item.amount)}</td>
+                <td class="amount-neutral">${ebitdaDisplay}</td>
                 <td>
+                    <button class="btn-edit"
+                        onclick='openEditIncomeModal(${JSON.stringify(item)})'
+                        title="Edit this entry">✏️</button>
                     <button class="btn-delete"
                         onclick="deleteEntry('income','${sanitizeText(item.id)}',${index})"
                         title="Delete this entry">🗑️</button>
@@ -2454,10 +2638,12 @@ function renderIncomeTable() {
             <td colspan="5" style="text-align:right; font-weight:700;">Total (${data.length} entries):</td>
             <td class="amount-positive">${formatINR(totalAmount)}</td>
             <td></td>
+            <td></td>
         </tr>`;
 
     tbody.innerHTML = rows;
 }
+
 
 // ============================================================
 // RENDER EXPENSE TABLE (Full List)
@@ -2846,6 +3032,116 @@ async function initApp() {
         showToast('App initialization failed: ' + err.message, 'error');
     } finally {
         setLoading(false);
+    }
+}
+// ============================================================
+// EDIT INCOME MODAL LOGIC
+// ============================================================
+function openEditIncomeModal(item) {
+    document.getElementById('editIncomeId').value          = item.id;
+    document.getElementById('editIncomeDate').value        = item.date;
+    document.getElementById('editIncomeDescription').value = item.description;
+    document.getElementById('editIncomeAmount').value      = item.amount;
+    document.getElementById('editIncomeEbitda').value      =
+        (item.ebitda !== '' && item.ebitda !== undefined && item.ebitda !== null) ? item.ebitda : '';
+
+    // Populate year dropdown (reuse existing years list)
+    const yearEl = document.getElementById('editIncomeYear');
+    const sourceYearEl = document.getElementById('incomeYear');
+    yearEl.innerHTML = sourceYearEl.innerHTML;
+    yearEl.value = item.year;
+
+    // Set category
+    document.getElementById('editIncomeCategory').value = item.category;
+
+    document.getElementById('editIncomeModal').classList.add('show');
+}
+
+function closeEditIncomeModal() {
+    document.getElementById('editIncomeModal').classList.remove('show');
+    document.getElementById('editIncomeForm').reset();
+    document.getElementById('editIncomeError').classList.remove('show');
+}
+
+async function submitEditIncome(event) {
+    event.preventDefault();
+
+    const btn = document.getElementById('updateIncomeBtn');
+    const id  = document.getElementById('editIncomeId').value;
+
+    const date        = document.getElementById('editIncomeDate').value.trim();
+    const year        = document.getElementById('editIncomeYear').value;
+    const category    = document.getElementById('editIncomeCategory').value;
+    const amount      = parseFloat(document.getElementById('editIncomeAmount').value);
+    const description = document.getElementById('editIncomeDescription').value.trim();
+    const ebitdaRaw    = document.getElementById('editIncomeEbitda').value;
+    const ebitda       = ebitdaRaw === '' ? '' : parseFloat(ebitdaRaw);
+
+    if (!date || !year || !category || !description || isNaN(amount) || amount <= 0) {
+        showAlert('editIncomeError', 'editIncomeErrorMsg',
+            'Please fill all fields correctly. Amount must be greater than 0.', 'error');
+        return;
+    }
+
+    const monthNum  = getMonthFromDate(date);
+    const monthName = MONTHS[monthNum - 1];
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Updating...';
+    setSyncStatus('syncing');
+
+    try {
+        const response = await callAPI({
+            action     : 'updateIncome',
+            id         : id,
+            date       : date,
+            year       : year,
+            description: description,
+            category   : category,
+            amount     : amount,
+            month      : monthName,
+            monthNum   : monthNum,
+            ebitda     : ebitda
+        });
+
+        if (response.status === 'success') {
+            // Update local data
+            const idx = allIncomeData.findIndex(item => String(item.id) === String(id));
+            if (idx !== -1) {
+                allIncomeData[idx] = {
+                    ...allIncomeData[idx],
+                    date       : date,
+                    year       : parseInt(year),
+                    description: description,
+                    category   : category,
+                    amount     : amount,
+                    month      : monthName,
+                    monthNum   : monthNum,
+                    ebitda     : ebitda
+                };
+            }
+
+            showToast('Income updated successfully!', 'success');
+            closeEditIncomeModal();
+
+            updateDashboard();
+            renderIncomeTable();
+            generateReport();
+            setSyncStatus('ok');
+
+        } else {
+            throw new Error(response.message || 'Failed to update income');
+        }
+
+    } catch (err) {
+        setSyncStatus('error');
+        console.error('Update income error:', err);
+        showAlert('editIncomeError', 'editIncomeErrorMsg',
+            'Error: ' + err.message, 'error');
+        showToast('Failed to update income: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 Update Income';
     }
 }
 
