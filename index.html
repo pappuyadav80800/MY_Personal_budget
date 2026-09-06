@@ -1410,7 +1410,7 @@
         <!-- Add Income Form -->
         <div class="card" style="margin-bottom:24px;">
     <div class="card-header">
-        <span class="card-title" id="incomeFormTitle">➕ Add New Income</span>
+        <span class="card-title" id="expenseFormTitle">➕ Add New Income</span>
     </div>
 
             <div class="card-body">
@@ -1540,6 +1540,7 @@
             </div>
             <div class="card-body">
                 <form id="expenseForm" onsubmit="submitExpense(event)">
+                    <input type="hidden" id="expenseEditId" value="">
                     <div class="form-grid">
                         <div class="form-group">
                             <label class="form-label">Date <span>*</span></label>
@@ -1578,14 +1579,19 @@
                                    placeholder="e.g. Grocery shopping at D-Mart" maxlength="200" required>
                         </div>
                     </div>
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-danger" id="addExpenseBtn">
-                            ➕ Add Expense
-                        </button>
-                        <button type="button" class="btn btn-outline" onclick="resetExpenseForm()">
-                            🔄 Reset
-                        </button>
-                    </div>
+                   <div class="form-actions">
+    <button type="submit" class="btn btn-danger" id="addExpenseBtn">
+        ➕ Add Expense
+    </button>
+    <button type="button" class="btn btn-outline" onclick="resetExpenseForm()" id="expenseResetBtn">
+        🔄 Reset
+    </button>
+    <button type="button" class="btn btn-danger" onclick="cancelEditExpense()"
+        id="cancelExpenseEditBtn" style="display:none; background:var(--gray);">
+        ❌ Cancel Edit
+    </button>
+</div>
+
                     <div class="alert alert-success" id="expenseSuccess">
                         <span>✅</span>
                         <span id="expenseSuccessMsg">Expense added successfully!</span>
@@ -2261,7 +2267,9 @@ async function submitIncome(event) {
 async function submitExpense(event) {
     event.preventDefault();
 
-    const btn = document.getElementById('addExpenseBtn');
+    const btn    = document.getElementById('addExpenseBtn');
+    const editId = document.getElementById('expenseEditId').value;
+    const isEdit = editId !== '';
 
     // Get values
     const date        = document.getElementById('expenseDate').value.trim();
@@ -2281,15 +2289,16 @@ async function submitExpense(event) {
     const monthNum  = getMonthFromDate(date);
     const monthName = MONTHS[monthNum - 1];
 
-    // Disable button to prevent duplicate
+    // Disable button to prevent duplicate submit
     btn.disabled = true;
-    btn.textContent = '⏳ Saving...';
+    btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
 
     setSyncStatus('syncing');
 
     try {
         const response = await callAPI({
-            action     : 'addExpense',
+            action     : isEdit ? 'updateExpense' : 'addExpense',
+            id         : isEdit ? editId : undefined,
             date       : date,
             year       : year,
             description: description,
@@ -2300,25 +2309,47 @@ async function submitExpense(event) {
         });
 
         if (response.status === 'success') {
-            // Add to local data immediately
-            allExpenseData.push({
-                id         : response.id || Date.now().toString(),
-                date       : date,
-                year       : parseInt(year),
-                description: description,
-                category   : category,
-                amount     : amount,
-                month      : monthName,
-                monthNum   : monthNum,
-                timestamp  : new Date().toISOString()
-            });
 
-            // Show success
-            showAlert('expenseSuccess', 'expenseSuccessMsg',
-                `Expense of ${formatINR(amount)} added successfully!`, 'success');
-            showToast(`Expense ${formatINR(amount)} saved!`, 'success');
+            if (isEdit) {
+                // Update existing record in local data
+                const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
+                if (idx !== -1) {
+                    allExpenseData[idx] = {
+                        ...allExpenseData[idx],
+                        date       : date,
+                        year       : parseInt(year),
+                        description: description,
+                        category   : category,
+                        amount     : amount,
+                        month      : monthName,
+                        monthNum   : monthNum
+                    };
+                }
 
-            // Reset form
+                showAlert('expenseSuccess', 'expenseSuccessMsg',
+                    `Expense updated successfully!`, 'success');
+                showToast(`Expense updated!`, 'success');
+
+            } else {
+                // Add new record to local data
+                allExpenseData.push({
+                    id         : response.id || Date.now().toString(),
+                    date       : date,
+                    year       : parseInt(year),
+                    description: description,
+                    category   : category,
+                    amount     : amount,
+                    month      : monthName,
+                    monthNum   : monthNum,
+                    timestamp  : new Date().toISOString()
+                });
+
+                showAlert('expenseSuccess', 'expenseSuccessMsg',
+                    `Expense of ${formatINR(amount)} added successfully!`, 'success');
+                showToast(`Expense ${formatINR(amount)} saved!`, 'success');
+            }
+
+            // Reset form back to Add mode
             resetExpenseForm();
 
             // Update all UI
@@ -2339,9 +2370,10 @@ async function submitExpense(event) {
         showToast('Failed to save expense: ' + err.message, 'error');
     } finally {
         btn.disabled = false;
-        btn.textContent = '➕ Add Expense';
+        btn.textContent = isEdit ? '💾 Update Expense' : '➕ Add Expense';
     }
 }
+
 
 // ============================================================
 // RESET FORMS
@@ -2384,6 +2416,13 @@ function cancelEditIncome() {
 function resetExpenseForm() {
     document.getElementById('expenseForm').reset();
     setDefaultDates();
+    document.getElementById('expenseEditId').value = '';
+
+    // Switch UI back to "Add" mode
+    document.getElementById('expenseFormTitle').textContent = '➕ Add New Expense';
+    document.getElementById('addExpenseBtn').textContent    = '➕ Add Expense';
+    document.getElementById('cancelExpenseEditBtn').style.display = 'none';
+
     // Reset year to current year
     const currentYear = new Date().getFullYear();
     const yearEl = document.getElementById('expenseYear');
@@ -2394,6 +2433,15 @@ function resetExpenseForm() {
         }
     }
 }
+
+// ============================================================
+// CANCEL EDIT — same as reset but explicit for clarity
+// ============================================================
+function cancelEditExpense() {
+    resetExpenseForm();
+    showToast('Edit cancelled', 'warning');
+}
+
 
 // ============================================================
 // DELETE ENTRY
@@ -3063,10 +3111,44 @@ function editIncomeRecord(item) {
 
 
 
-// Start app when DOM is ready
+// Start app when DOM is ready 
 document.addEventListener('DOMContentLoaded', function() {
     const loggedIn = checkLoginStatus();
     if (loggedIn) {
+        // ============================================================
+// EDIT EXPENSE — Load record into the Add Expense form itself
+// ============================================================
+function editExpenseRecord(item) {
+    // Switch to Expense tab first
+    switchTab('expense');
+
+    // Fill form fields with existing record data
+    document.getElementById('expenseEditId').value      = item.id;
+    document.getElementById('expenseDate').value        = item.date;
+    document.getElementById('expenseDescription').value = item.description;
+    document.getElementById('expenseAmount').value      = item.amount;
+    document.getElementById('expenseCategory').value    = item.category;
+
+    // Set year dropdown
+    const yearEl = document.getElementById('expenseYear');
+    for (let i = 0; i < yearEl.options.length; i++) {
+        if (parseInt(yearEl.options[i].value) === parseInt(item.year)) {
+            yearEl.selectedIndex = i;
+            break;
+        }
+    }
+
+    // Switch UI to "Edit" mode
+    document.getElementById('expenseFormTitle').textContent = '✏️ Edit Expense';
+    document.getElementById('addExpenseBtn').textContent    = '💾 Update Expense';
+    document.getElementById('cancelExpenseEditBtn').style.display = 'inline-flex';
+
+    // Scroll to form smoothly
+    document.getElementById('expenseForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    showToast('Editing record — update fields and click "Update Expense"', 'warning');
+}
+
         initApp();
     }
     // अगर logged in नहीं है, तो सिर्फ login form दिखेगा
