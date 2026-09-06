@@ -1410,7 +1410,7 @@
         <!-- Add Income Form -->
         <div class="card" style="margin-bottom:24px;">
     <div class="card-header">
-        <span class="card-title" id="expenseFormTitle">➕ Add New Income</span>
+        <span class="card-title" id="incomeFormTitle">➕ Add New Income</span>
     </div>
 
             <div class="card-body">
@@ -1460,11 +1460,11 @@
     <button type="button" class="btn btn-outline" onclick="resetIncomeForm()" id="incomeResetBtn">
         🔄 Reset
     </button>
-    <button type="button" class="btn btn-danger" onclick="cancelEditIncome()"
-        id="cancelIncomeEditBtn" style="display:none; background:var(--gray);">
+    <button type="button" class="btn btn-danger" onclick="cancelEditIncome()" id="cancelIncomeEditBtn" style="display:none; background:var(--dark-2, #475569);">
         ❌ Cancel Edit
     </button>
 </div>
+
 
 
                     <div class="alert alert-success" id="incomeSuccess">
@@ -1883,6 +1883,18 @@ function formatDate(dateStr) {
         return dateStr;
     }
 }
+    // Date format helper to safely fill <input type="date">
+function formatDateForInput(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toISOString().split('T')[0];
+    } catch(e) {
+        return dateStr;
+    }
+}
+
 
 // Get month number (1-12) from date string
 function getMonthFromDate(dateStr) {
@@ -2177,11 +2189,9 @@ function resetIncomeForm() {
     setDefaultDates();
     safeSetValue('incomeEditId', '');
 
-    // Restore UI to Add Mode
+    // Reset UI to Normal Add Mode
     safeSetText('incomeFormTitle', '➕ Add New Income');
     safeSetText('addIncomeBtn', '➕ Add Income');
-    
-    // Toggle Buttons
     safeSetDisplay('incomeResetBtn', 'inline-flex');
     safeSetDisplay('cancelIncomeEditBtn', 'none');
 
@@ -2207,13 +2217,14 @@ function editIncomeRecord(item) {
     if (!item) return;
     switchTab('income');
 
-    // Load Data into Form
+    // 1. Set Hidden ID & Form Data
     safeSetValue('incomeEditId', item.id);
-    safeSetValue('incomeDate', item.date);
+    safeSetValue('incomeDate', formatDateForInput(item.date));
     safeSetValue('incomeDescription', item.description);
     safeSetValue('incomeAmount', item.amount);
     safeSetValue('incomeCategory', item.category);
 
+    // 2. Set Year Dropdown
     const yearEl = document.getElementById('incomeYear');
     if (yearEl) {
         for (let i = 0; i < yearEl.options.length; i++) {
@@ -2224,15 +2235,13 @@ function editIncomeRecord(item) {
         }
     }
 
-    // Activate Edit UI Mode
+    // 3. Switch UI to Edit Mode (3 Buttons Visible!)
     safeSetText('incomeFormTitle', '✏️ Edit Income');
     safeSetText('addIncomeBtn', '💾 Update Income');
-    
-    // Toggle Buttons: Show Cancel Edit, Hide Reset
-    safeSetDisplay('incomeResetBtn', 'none');
+    safeSetDisplay('incomeResetBtn', 'inline-flex');
     safeSetDisplay('cancelIncomeEditBtn', 'inline-flex');
 
-    // Smooth Scroll to Form
+    // 4. Smooth Scroll to Form
     const form = document.getElementById('incomeForm');
     if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
