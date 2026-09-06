@@ -1748,6 +1748,27 @@
 
 </main>
 <!-- END MAIN -->
+    // Safe DOM manipulation helpers to prevent 'Cannot set properties of null' errors
+function safeSetText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
+function safeSetValue(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = (val !== null && val !== undefined) ? val : '';
+}
+
+function safeSetDisplay(id, displayStyle) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = displayStyle;
+}
+
+function safeGetValue(id) {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+}
+
 
 <!-- ==================== JAVASCRIPT ==================== -->
 <script>
@@ -2381,27 +2402,7 @@ async function submitExpense(event) {
 // ============================================================
 // RESET INCOME FORM (also exits edit mode back to Add mode)
 // ============================================================
-function resetIncomeForm() {
-    document.getElementById('incomeForm').reset();
-    setDefaultDates();
-    
-    document.getElementById('incomeEditId').value = '';
 
-    // Switch UI back to "Add" mode
-    document.getElementById('incomeFormTitle').textContent = '➕ Add New Income';
-    document.getElementById('addIncomeBtn').textContent    = '➕ Add Income';
-    document.getElementById('cancelIncomeEditBtn').style.display = 'none';
-
-    // Reset year to current year
-    const currentYear = new Date().getFullYear();
-    const yearEl = document.getElementById('incomeYear');
-    for (let i = 0; i < yearEl.options.length; i++) {
-        if (parseInt(yearEl.options[i].value) === currentYear) {
-            yearEl.selectedIndex = i;
-            break;
-        }
-    }
-}
 
 // ============================================================
 // CANCEL EDIT — same as reset but explicit for clarity
