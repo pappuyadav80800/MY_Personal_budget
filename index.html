@@ -2177,12 +2177,15 @@ function resetIncomeForm() {
     setDefaultDates();
     safeSetValue('incomeEditId', '');
 
-    // Reset UI to Add mode safely
+    // Restore UI to Add Mode
     safeSetText('incomeFormTitle', '➕ Add New Income');
     safeSetText('addIncomeBtn', '➕ Add Income');
+    
+    // Toggle Buttons
+    safeSetDisplay('incomeResetBtn', 'inline-flex');
     safeSetDisplay('cancelIncomeEditBtn', 'none');
 
-    // Reset year
+    // Reset Year
     const currentYear = new Date().getFullYear();
     const yearEl = document.getElementById('incomeYear');
     if (yearEl) {
@@ -2204,6 +2207,7 @@ function editIncomeRecord(item) {
     if (!item) return;
     switchTab('income');
 
+    // Load Data into Form
     safeSetValue('incomeEditId', item.id);
     safeSetValue('incomeDate', item.date);
     safeSetValue('incomeDescription', item.description);
@@ -2220,10 +2224,15 @@ function editIncomeRecord(item) {
         }
     }
 
+    // Activate Edit UI Mode
     safeSetText('incomeFormTitle', '✏️ Edit Income');
     safeSetText('addIncomeBtn', '💾 Update Income');
+    
+    // Toggle Buttons: Show Cancel Edit, Hide Reset
+    safeSetDisplay('incomeResetBtn', 'none');
     safeSetDisplay('cancelIncomeEditBtn', 'inline-flex');
 
+    // Smooth Scroll to Form
     const form = document.getElementById('incomeForm');
     if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
