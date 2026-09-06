@@ -1409,12 +1409,15 @@
 
         <!-- Add Income Form -->
         <div class="card" style="margin-bottom:24px;">
-            <div class="card-header">
-                <span class="card-title">➕ Add New Income</span>
-            </div>
+    <div class="card-header">
+        <span class="card-title" id="incomeFormTitle">➕ Add New Income</span>
+    </div>
+
             <div class="card-body">
                 <form id="incomeForm" onsubmit="submitIncome(event)">
-                    <div class="form-grid">
+    <input type="hidden" id="incomeEditId" value="">
+    <div class="form-grid">
+
                         <div class="form-group">
                             <label class="form-label">Date <span>*</span></label>
                             <input type="date" class="form-control" id="incomeDate" required>
@@ -1455,13 +1458,18 @@
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-success" id="addIncomeBtn">
-                            ➕ Add Income
-                        </button>
-                        <button type="button" class="btn btn-outline" onclick="resetIncomeForm()">
-                            🔄 Reset
-                        </button>
-                    </div>
+    <button type="submit" class="btn btn-success" id="addIncomeBtn">
+        ➕ Add Income
+    </button>
+    <button type="button" class="btn btn-outline" onclick="resetIncomeForm()" id="incomeResetBtn">
+        🔄 Reset
+    </button>
+    <button type="button" class="btn btn-danger" onclick="cancelEditIncome()"
+        id="cancelIncomeEditBtn" style="display:none;">
+        ❌ Cancel Edit
+    </button>
+</div>
+
                     <div class="alert alert-success" id="incomeSuccess">
                         <span>✅</span>
                         <span id="incomeSuccessMsg">Income added successfully!</span>
