@@ -914,9 +914,234 @@
         .balance-positive { color: var(--success) !important; }
         .balance-negative { color: var(--danger)  !important; }
         .balance-zero     { color: var(--gray)    !important; }
+                /* ===== LOGIN PAGE ===== */
+        .login-overlay {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #6366f1 100%);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-overlay.hidden { display: none; }
+
+        .login-box {
+            background: rgba(255,255,255,0.98);
+            border-radius: 20px;
+            padding: 40px 36px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+            animation: loginFadeIn 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-box::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #6366f1, #764ba2, #6366f1);
+        }
+
+        @keyframes loginFadeIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.96); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .login-logo .icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, #6366f1, #764ba2);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            margin: 0 auto 14px;
+            box-shadow: 0 8px 20px rgba(99,102,241,0.35);
+        }
+
+        .login-logo h1 {
+            font-size: 22px;
+            font-weight: 800;
+            color: #1e293b;
+            letter-spacing: -0.3px;
+        }
+
+        .login-logo p {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .login-form-group {
+            margin-bottom: 18px;
+        }
+
+        .login-form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+
+        .login-input-wrap {
+            position: relative;
+        }
+
+        .login-input-wrap .input-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+            opacity: 0.5;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 12px 14px 12px 40px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background: #f8fafc;
+        }
+
+        .login-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+            background: white;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 13px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #6366f1, #764ba2);
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 6px 16px rgba(99,102,241,0.35);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 22px rgba(99,102,241,0.45);
+        }
+
+        .login-btn:active { transform: translateY(0); }
+
+        .login-error {
+            display: none;
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .login-error.show { display: flex; }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        /* Logout Button */
+        .btn-logout {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+            margin-left: 12px;
+        }
+
+        .btn-logout:hover {
+            background: rgba(255,255,255,0.28);
+        }
+
+        .app-hidden { display: none !important; }
+
+        @media (max-width: 480px) {
+            .login-box { padding: 32px 24px; }
+            .login-logo .icon { width: 54px; height: 54px; font-size: 26px; }
+        }
+
     </style>
 </head>
 <body>
+    <!-- ===== LOGIN OVERLAY ===== -->
+<div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+        <div class="login-logo">
+            <div class="icon">💰</div>
+            <h1>Budget Manager</h1>
+            <p>Sign in to access your finance dashboard</p>
+        </div>
+
+        <div class="login-error" id="loginError">
+            <span>❌</span>
+            <span id="loginErrorMsg">Invalid username or password</span>
+        </div>
+
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="login-form-group">
+                <label>Username</label>
+                <div class="login-input-wrap">
+                    <span class="input-icon">👤</span>
+                    <input type="text" class="login-input" id="loginUsername"
+                           placeholder="Enter username" autocomplete="username" required>
+                </div>
+            </div>
+
+            <div class="login-form-group">
+                <label>Password</label>
+                <div class="login-input-wrap">
+                    <span class="input-icon">🔒</span>
+                    <input type="password" class="login-input" id="loginPassword"
+                           placeholder="Enter password" autocomplete="current-password" required>
+                </div>
+            </div>
+
+            <button type="submit" class="login-btn">🔐 Sign In</button>
+        </form>
+
+        <div class="login-footer">Secured Personal Finance Manager © 2025</div>
+    </div>
+</div>
+
 
 <!-- ===== LOADING OVERLAY ===== -->
 <div class="loading-overlay" id="loadingOverlay">
@@ -937,12 +1162,18 @@
                 <span>Personal Finance Tracker</span>
             </div>
         </div>
-        <div class="header-sync">
-            <div class="sync-dot" id="syncDot"></div>
-            <span id="syncStatus">Connected</span>
+        <div style="display:flex; align-items:center;">
+            <div class="header-sync">
+                <div class="sync-dot" id="syncDot"></div>
+                <span id="syncStatus">Connected</span>
+            </div>
+            <button class="btn-logout" onclick="handleLogout()">
+                🚪 Logout
+            </button>
         </div>
     </div>
 </header>
+
 
 <!-- ===== NAVIGATION ===== -->
 <nav class="nav">
@@ -1410,11 +1641,63 @@
 
 <!-- ==================== JAVASCRIPT ==================== -->
 <script>
+// ============================================================
+// LOGIN / AUTHENTICATION (Client-Side, sessionStorage based)
+// ============================================================
+const LOGIN_CREDENTIALS = {
+    username: 'admin',
+    password: 'admin123'
+};
+
+function checkLoginStatus() {
+    const isLoggedIn = sessionStorage.getItem('bm_logged_in') === 'true';
+    const overlay = document.getElementById('loginOverlay');
+
+    if (isLoggedIn) {
+        overlay.classList.add('hidden');
+        return true;
+    } else {
+        overlay.classList.remove('hidden');
+        return false;
+    }
+}
+
+function handleLogin(event) {
+    event.preventDefault();
+
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    const errorBox = document.getElementById('loginError');
+
+    if (username === LOGIN_CREDENTIALS.username &&
+        password === LOGIN_CREDENTIALS.password) {
+
+        sessionStorage.setItem('bm_logged_in', 'true');
+        errorBox.classList.remove('show');
+        document.getElementById('loginOverlay').classList.add('hidden');
+        document.getElementById('loginForm').reset();
+
+        // Start loading app data after login
+        initApp();
+
+    } else {
+        errorBox.classList.add('show');
+        document.getElementById('loginErrorMsg').textContent =
+            'Invalid username or password. Please try again.';
+    }
+}
+
+function handleLogout() {
+    if (!confirm('Are you sure you want to logout?')) return;
+    sessionStorage.removeItem('bm_logged_in');
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    showToast('Logged out successfully', 'success');
+}
 
 // ============================================================
 // CONFIGURATION — Replace with your actual values
 // ============================================================
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz8jwEXKj15QUIJt-Bd0gM4ZTP4iux5iP9r6jUiHysms0A8cZLrTBmYvJ_AZ8-QjBbllA/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbws0FnhTNMQKsgeDBisuZzops-1GyJI85pZBaeJerpsqfqu2H_8RjetaNArK5Ufll_wzw/exec';
 
 // ============================================================
 // GLOBAL DATA STORE
@@ -2567,7 +2850,15 @@ async function initApp() {
 }
 
 // Start app when DOM is ready
-document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('DOMContentLoaded', function() {
+    const loggedIn = checkLoginStatus();
+    if (loggedIn) {
+        initApp();
+    }
+    // अगर logged in नहीं है, तो सिर्फ login form दिखेगा
+    // initApp() तब चलेगा जब handleLogin() में login successful होगा
+});
+
 
 </script>
 </body>
