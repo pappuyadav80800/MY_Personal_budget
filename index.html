@@ -2139,10 +2139,15 @@ async function refreshAllData() {
 // ============================================================
 // SUBMIT INCOME
 // ============================================================
+// ============================================================
+// SUBMIT INCOME (Handles both ADD and EDIT/UPDATE)
+// ============================================================
 async function submitIncome(event) {
     event.preventDefault();
 
-    const btn = document.getElementById('addIncomeBtn');
+    const btn      = document.getElementById('addIncomeBtn');
+    const editId   = document.getElementById('incomeEditId').value;
+    const isEdit   = editId !== '';
 
     // Get values
     const date        = document.getElementById('incomeDate').value.trim();
@@ -2164,15 +2169,16 @@ async function submitIncome(event) {
     const monthNum  = getMonthFromDate(date);
     const monthName = MONTHS[monthNum - 1];
 
-    // Disable button to prevent duplicate
+    // Disable button to prevent duplicate submit
     btn.disabled = true;
-    btn.textContent = '⏳ Saving...';
+    btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
 
     setSyncStatus('syncing');
 
     try {
         const response = await callAPI({
-            action     : 'addIncome',
+            action     : isEdit ? 'updateIncome' : 'addIncome',
+            id         : isEdit ? editId : undefined,
             date       : date,
             year       : year,
             description: description,
@@ -2184,26 +2190,49 @@ async function submitIncome(event) {
         });
 
         if (response.status === 'success') {
-            // Add to local data immediately
-            allIncomeData.push({
-                id         : response.id || Date.now().toString(),
-                date       : date,
-                year       : parseInt(year),
-                description: description,
-                category   : category,
-                amount     : amount,
-                month      : monthName,
-                monthNum   : monthNum,
-                timestamp  : new Date().toISOString(),
-                ebitda     : ebitda
-            });
 
-            // Show success
-            showAlert('incomeSuccess', 'incomeSuccessMsg',
-                `Income of ${formatINR(amount)} added successfully!`, 'success');
-            showToast(`Income ${formatINR(amount)} saved!`, 'success');
+            if (isEdit) {
+                // Update existing record in local data
+                const idx = allIncomeData.findIndex(item => String(item.id) === String(editId));
+                if (idx !== -1) {
+                    allIncomeData[idx] = {
+                        ...allIncomeData[idx],
+                        date       : date,
+                        year       : parseInt(year),
+                        description: description,
+                        category   : category,
+                        amount     : amount,
+                        month      : monthName,
+                        monthNum   : monthNum,
+                        ebitda     : ebitda
+                    };
+                }
 
-            // Reset form
+                showAlert('incomeSuccess', 'incomeSuccessMsg',
+                    `Income updated successfully!`, 'success');
+                showToast(`Income updated!`, 'success');
+
+            } else {
+                // Add new record to local data
+                allIncomeData.push({
+                    id         : response.id || Date.now().toString(),
+                    date       : date,
+                    year       : parseInt(year),
+                    description: description,
+                    category   : category,
+                    amount     : amount,
+                    month      : monthName,
+                    monthNum   : monthNum,
+                    timestamp  : new Date().toISOString(),
+                    ebitda     : ebitda
+                });
+
+                showAlert('incomeSuccess', 'incomeSuccessMsg',
+                    `Income of ${formatINR(amount)} added successfully!`, 'success');
+                showToast(`Income ${formatINR(amount)} saved!`, 'success');
+            }
+
+            // Reset form back to Add mode
             resetIncomeForm();
 
             // Update all UI
@@ -2224,9 +2253,10 @@ async function submitIncome(event) {
         showToast('Failed to save income: ' + err.message, 'error');
     } finally {
         btn.disabled = false;
-        btn.textContent = '➕ Add Income';
+        btn.textContent = isEdit ? '💾 Update Income' : '➕ Add Income';
     }
 }
+
 
 
 // ============================================================
@@ -2320,10 +2350,20 @@ async function submitExpense(event) {
 // ============================================================
 // RESET FORMS
 // ============================================================
+// ============================================================
+// RESET INCOME FORM (also exits edit mode back to Add mode)
+// ============================================================
 function resetIncomeForm() {
     document.getElementById('incomeForm').reset();
     setDefaultDates();
     document.getElementById('incomeEbitda').value = '';
+    document.getElementById('incomeEditId').value = '';
+
+    // Switch UI back to "Add" mode
+    document.getElementById('incomeFormTitle').textContent = '➕ Add New Income';
+    document.getElementById('addIncomeBtn').textContent    = '➕ Add Income';
+    document.getElementById('cancelIncomeEditBtn').style.display = 'none';
+
     // Reset year to current year
     const currentYear = new Date().getFullYear();
     const yearEl = document.getElementById('incomeYear');
@@ -2334,6 +2374,15 @@ function resetIncomeForm() {
         }
     }
 }
+
+// ============================================================
+// CANCEL EDIT — same as reset but explicit for clarity
+// ============================================================
+function cancelEditIncome() {
+    resetIncomeForm();
+    showToast('Edit cancelled', 'warning');
+}
+
 
 
 function resetExpenseForm() {
@@ -2516,9 +2565,6 @@ function renderRecentExpense(data) {
 // ============================================================
 // RENDER INCOME TABLE (Full List)
 // ============================================================
-// ============================================================
-// RENDER INCOME TABLE (Full List)
-// ============================================================
 function renderIncomeTable() {
     const tbody      = document.getElementById('incomeTableBody');
     const yearFilter = document.getElementById('incomeListYearFilter').value;
@@ -2545,7 +2591,7 @@ function renderIncomeTable() {
         return;
     }
 
-    let totalAmount = 0;
+        let totalAmount = 0;
     let rows = '';
 
     data.forEach((item, index) => {
@@ -2553,43 +2599,42 @@ function renderIncomeTable() {
         const ebitdaDisplay = (item.ebitda !== '' && item.ebitda !== undefined && item.ebitda !== null)
             ? formatINR(item.ebitda) : '—';
 
-        rows += `
-            <tr>
-                <td>${index + 1}</td>
-                <td>${sanitizeText(formatDate(item.date))}</td>
-                <td>${sanitizeText(item.year)}</td>
-                <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                    title="${sanitizeText(item.description)}">
-                    ${sanitizeText(item.description)}
-                </td>
-                <td><span class="badge badge-income">${sanitizeText(item.category)}</span></td>
-                <td class="amount-positive">${formatINR(item.amount)}</td>
-                <td class="amount-neutral">${ebitdaDisplay}</td>
-                <td>
-                    <button class="btn-edit"
-                        onclick='openEditIncomeModal(${JSON.stringify(item)})'
-                        title="Edit this entry">✏️</button>
-                    <button class="btn-delete"
-                        onclick="deleteEntry('income','${sanitizeText(item.id)}',${index})"
-                        title="Delete this entry">🗑️</button>
-                </td>
-            </tr>`;
+        rows += '<tr>' +
+            '<td>' + (index + 1) + '</td>' +
+            '<td>' + sanitizeText(formatDate(item.date)) + '</td>' +
+            '<td>' + sanitizeText(item.year) + '</td>' +
+            '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + sanitizeText(item.description) + '">' +
+                sanitizeText(item.description) +
+            '</td>' +
+            '<td><span class="badge badge-income">' + sanitizeText(item.category) + '</span></td>' +
+            '<td class="amount-positive">' + formatINR(item.amount) + '</td>' +
+            '<td class="amount-neutral">' + ebitdaDisplay + '</td>' +
+            '<td>' +
+                '<button class="btn-edit" data-index="' + index + '" title="Edit this entry">✏️</button>' +
+                '<button class="btn-delete" onclick="deleteEntry(\'income\',\'' + sanitizeText(item.id) + '\',' + index + ')" title="Delete this entry">🗑️</button>' +
+            '</td>' +
+        '</tr>';
     });
 
     // Total row
-    rows += `
-        <tr class="tfoot-row">
-            <td colspan="5" style="text-align:right; font-weight:700;">Total (${data.length} entries):</td>
-            <td class="amount-positive">${formatINR(totalAmount)}</td>
-            <td></td>
-            <td></td>
-        </tr>`;
+    rows += '<tr class="tfoot-row">' +
+        '<td colspan="5" style="text-align:right; font-weight:700;">Total (' + data.length + ' entries):</td>' +
+        '<td class="amount-positive">' + formatINR(totalAmount) + '</td>' +
+        '<td></td>' +
+        '<td></td>' +
+    '</tr>';
 
     tbody.innerHTML = rows;
+
+    // Attach edit button click events (avoids inline JSON in HTML attribute)
+    const editButtons = tbody.querySelectorAll('.btn-edit');
+    editButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const idx = parseInt(btn.getAttribute('data-index'));
+            editIncomeRecord(data[idx]);
+        });
+    });
 }
-
-
-// ============================================================
 // RENDER EXPENSE TABLE (Full List)
 // ============================================================
 function renderExpenseTable() {
@@ -2652,6 +2697,8 @@ function renderExpenseTable() {
 
     tbody.innerHTML = rows;
 }
+
+
 
 // ============================================================
 // GENERATE REPORTS
@@ -2984,6 +3031,41 @@ async function initApp() {
 
 
 
+// ============================================================
+// EDIT INCOME — Load record into the Add Income form itself
+// ============================================================
+function editIncomeRecord(item) {
+    // Switch to Income tab first
+    switchTab('income');
+
+    // Fill form fields with existing record data
+    document.getElementById('incomeEditId').value      = item.id;
+    document.getElementById('incomeDate').value        = item.date;
+    document.getElementById('incomeDescription').value = item.description;
+    document.getElementById('incomeAmount').value       = item.amount;
+    document.getElementById('incomeEbitda').value       =
+        (item.ebitda !== '' && item.ebitda !== undefined && item.ebitda !== null) ? item.ebitda : '';
+    document.getElementById('incomeCategory').value     = item.category;
+
+    // Set year dropdown
+    const yearEl = document.getElementById('incomeYear');
+    for (let i = 0; i < yearEl.options.length; i++) {
+        if (parseInt(yearEl.options[i].value) === parseInt(item.year)) {
+            yearEl.selectedIndex = i;
+            break;
+        }
+    }
+
+    // Switch UI to "Edit" mode
+    document.getElementById('incomeFormTitle').textContent = '✏️ Edit Income';
+    document.getElementById('addIncomeBtn').textContent    = '💾 Update Income';
+    document.getElementById('cancelIncomeEditBtn').style.display = 'inline-flex';
+
+    // Scroll to form smoothly
+    document.getElementById('incomeForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    showToast('Editing record — update fields and click "Update Income"', 'warning');
+}
 
 
 
