@@ -2688,58 +2688,60 @@ function renderExpenseTable() {
 
     let data = [...allExpenseData];
 
-    // Filter by year
     if (yearFilter !== 'all') {
         data = data.filter(item => parseInt(item.year) === parseInt(yearFilter));
     }
 
-    // Sort by date descending
     data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7">
-            <div class="empty-state">
-                <span class="empty-state-icon">💸</span>
-                <h3>No Expense Records</h3>
-                <p>${yearFilter !== 'all' ? `No expenses found for ${yearFilter}.` : 'Add your first expense entry.'}</p>
-            </div></td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="7">' +
+            '<div class="empty-state">' +
+                '<span class="empty-state-icon">💸</span>' +
+                '<h3>No Expense Records</h3>' +
+                '<p>' + (yearFilter !== 'all' ? ('No expenses found for ' + yearFilter + '.') : 'Add your first expense entry.') + '</p>' +
+            '</div></td></tr>';
         return;
     }
 
     let totalAmount = 0;
     let rows = '';
-
-    data.forEach((item, index) => {
+    data.forEach(function(item, index) {
         totalAmount += parseFloat(item.amount) || 0;
-        rows += `
-            <tr>
-                <td>${index + 1}</td>
-                <td>${sanitizeText(formatDate(item.date))}</td>
-                <td>${sanitizeText(item.year)}</td>
-                <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-                    title="${sanitizeText(item.description)}">
-                    ${sanitizeText(item.description)}
-                </td>
-                <td><span class="badge badge-expense">${sanitizeText(item.category)}</span></td>
-                <td class="amount-negative">${formatINR(item.amount)}</td>
-                <td>
-                    <button class="btn-delete"
-                        onclick="deleteEntry('expense','${sanitizeText(item.id)}',${index})"
-                        title="Delete this entry">🗑️</button>
-                </td>
-            </tr>`;
+
+        rows += '<tr>' +
+            '<td>' + (index + 1) + '</td>' +
+            '<td>' + sanitizeText(formatDate(item.date)) + '</td>' +
+            '<td>' + sanitizeText(item.year) + '</td>' +
+            '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + sanitizeText(item.description) + '">' +
+                sanitizeText(item.description) +
+            '</td>' +
+            '<td><span class="badge badge-expense">' + sanitizeText(item.category) + '</span></td>' +
+            '<td class="amount-negative">' + formatINR(item.amount) + '</td>' +
+            '<td>' +
+                '<button class="btn-edit" data-index="' + index + '" title="Edit this entry">✏️</button>' +
+                '<button class="btn-delete" onclick="deleteEntry(\'expense\',\'' + sanitizeText(item.id) + '\',' + index + ')" title="Delete this entry">🗑️</button>' +
+            '</td>' +
+        '</tr>';
     });
 
-    // Total row
-    rows += `
-        <tr class="tfoot-row">
-            <td colspan="5" style="text-align:right; font-weight:700;">Total (${data.length} entries):</td>
-            <td class="amount-negative">${formatINR(totalAmount)}</td>
-            <td></td>
-        </tr>`;
+    rows += '<tr class="tfoot-row">' +
+        '<td colspan="5" style="text-align:right; font-weight:700;">Total (' + data.length + ' entries):</td>' +
+        '<td class="amount-negative">' + formatINR(totalAmount) + '</td>' +
+        '<td></td>' +
+    '</tr>';
 
     tbody.innerHTML = rows;
+
+    const editButtons = tbody.querySelectorAll('.btn-edit');
+    editButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const idx = parseInt(btn.getAttribute('data-index'));
+            editExpenseRecord(data[idx]);
+        });
+    });
 }
+
 
 
 
