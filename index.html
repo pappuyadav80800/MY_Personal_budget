@@ -1748,7 +1748,15 @@
 
 </main>
 <!-- END MAIN -->
-    // Safe DOM manipulation helpers to prevent 'Cannot set properties of null' errors
+   
+
+
+<!-- ==================== JAVASCRIPT ==================== -->
+<script>
+// ============================================================
+// LOGIN / AUTHENTICATION (Client-Side, sessionStorage based)
+// ============================================================
+     // Safe DOM manipulation helpers to prevent 'Cannot set properties of null' errors
 function safeSetText(id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
@@ -1768,13 +1776,6 @@ function safeGetValue(id) {
     const el = document.getElementById(id);
     return el ? el.value.trim() : '';
 }
-
-
-<!-- ==================== JAVASCRIPT ==================== -->
-<script>
-// ============================================================
-// LOGIN / AUTHENTICATION (Client-Side, sessionStorage based)
-// ============================================================
 const LOGIN_CREDENTIALS = {
     username: 'admin',
     password: 'admin123'
@@ -2165,36 +2166,95 @@ async function refreshAllData() {
 // ============================================================
 // SUBMIT INCOME (Handles both ADD and EDIT/UPDATE)
 // ============================================================
+// ============================================================
+// INCOME FUNCTIONS (FIXED)
+// ============================================================
+
+function resetIncomeForm() {
+    const form = document.getElementById('incomeForm');
+    if (form) form.reset();
+    setDefaultDates();
+    safeSetValue('incomeEditId', '');
+
+    // Reset UI to Add mode safely
+    safeSetText('incomeFormTitle', '➕ Add New Income');
+    safeSetText('addIncomeBtn', '➕ Add Income');
+    safeSetDisplay('cancelIncomeEditBtn', 'none');
+
+    // Reset year
+    const currentYear = new Date().getFullYear();
+    const yearEl = document.getElementById('incomeYear');
+    if (yearEl) {
+        for (let i = 0; i < yearEl.options.length; i++) {
+            if (parseInt(yearEl.options[i].value) === currentYear) {
+                yearEl.selectedIndex = i;
+                break;
+            }
+        }
+    }
+}
+
+function cancelEditIncome() {
+    resetIncomeForm();
+    showToast('Income edit cancelled', 'warning');
+}
+
+function editIncomeRecord(item) {
+    if (!item) return;
+    switchTab('income');
+
+    safeSetValue('incomeEditId', item.id);
+    safeSetValue('incomeDate', item.date);
+    safeSetValue('incomeDescription', item.description);
+    safeSetValue('incomeAmount', item.amount);
+    safeSetValue('incomeCategory', item.category);
+
+    const yearEl = document.getElementById('incomeYear');
+    if (yearEl) {
+        for (let i = 0; i < yearEl.options.length; i++) {
+            if (parseInt(yearEl.options[i].value) === parseInt(item.year)) {
+                yearEl.selectedIndex = i;
+                break;
+            }
+        }
+    }
+
+    safeSetText('incomeFormTitle', '✏️ Edit Income');
+    safeSetText('addIncomeBtn', '💾 Update Income');
+    safeSetDisplay('cancelIncomeEditBtn', 'inline-flex');
+
+    const form = document.getElementById('incomeForm');
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    showToast('Editing income entry', 'warning');
+}
+
 async function submitIncome(event) {
     event.preventDefault();
 
-    const btn      = document.getElementById('addIncomeBtn');
-    const editId   = document.getElementById('incomeEditId').value;
-    const isEdit   = editId !== '';
+    const btn    = document.getElementById('addIncomeBtn');
+    const editId = safeGetValue('incomeEditId');
+    const isEdit = editId !== '';
 
-    // Get values
-    const date        = document.getElementById('incomeDate').value.trim();
-    const year        = document.getElementById('incomeYear').value;
-    const category    = document.getElementById('incomeCategory').value;
-    const amount      = parseFloat(document.getElementById('incomeAmount').value);
-    const description = document.getElementById('incomeDescription').value.trim();
-    const ebitda = '';
+    const date        = safeGetValue('incomeDate');
+    const year        = safeGetValue('incomeYear');
+    const category    = safeGetValue('incomeCategory');
+    const amount      = parseFloat(safeGetValue('incomeAmount'));
+    const description = safeGetValue('incomeDescription');
 
-
-    // Validation
     if (!date || !year || !category || !description || isNaN(amount) || amount <= 0) {
         showAlert('incomeError', 'incomeErrorMsg',
             'Please fill all fields correctly. Amount must be greater than 0.', 'error');
         return;
     }
 
-    // Get month from date
     const monthNum  = getMonthFromDate(date);
     const monthName = MONTHS[monthNum - 1];
 
-    // Disable button to prevent duplicate submit
-    btn.disabled = true;
-    btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
+    }
 
     setSyncStatus('syncing');
 
@@ -2208,14 +2268,11 @@ async function submitIncome(event) {
             category   : category,
             amount     : amount,
             month      : monthName,
-            monthNum   : monthNum,
-            ebitda     : ebitda
+            monthNum   : monthNum
         });
 
         if (response.status === 'success') {
-
             if (isEdit) {
-                // Update existing record in local data
                 const idx = allIncomeData.findIndex(item => String(item.id) === String(editId));
                 if (idx !== -1) {
                     allIncomeData[idx] = {
@@ -2226,17 +2283,12 @@ async function submitIncome(event) {
                         category   : category,
                         amount     : amount,
                         month      : monthName,
-                        monthNum   : monthNum,
-                        ebitda     : ebitda
+                        monthNum   : monthNum
                     };
                 }
-
-                showAlert('incomeSuccess', 'incomeSuccessMsg',
-                    `Income updated successfully!`, 'success');
-                showToast(`Income updated!`, 'success');
-
+                showAlert('incomeSuccess', 'incomeSuccessMsg', 'Income updated successfully!', 'success');
+                showToast('Income updated!', 'success');
             } else {
-                // Add new record to local data
                 allIncomeData.push({
                     id         : response.id || Date.now().toString(),
                     date       : date,
@@ -2246,73 +2298,130 @@ async function submitIncome(event) {
                     amount     : amount,
                     month      : monthName,
                     monthNum   : monthNum,
-                    timestamp  : new Date().toISOString(),
-                    ebitda     : ebitda
+                    timestamp  : new Date().toISOString()
                 });
-
-                showAlert('incomeSuccess', 'incomeSuccessMsg',
-                    `Income of ${formatINR(amount)} added successfully!`, 'success');
+                showAlert('incomeSuccess', 'incomeSuccessMsg', `Income of ${formatINR(amount)} added successfully!`, 'success');
                 showToast(`Income ${formatINR(amount)} saved!`, 'success');
             }
 
-            // Reset form back to Add mode
             resetIncomeForm();
-
-            // Update all UI
             updateDashboard();
             renderIncomeTable();
             generateReport();
             setSyncStatus('ok');
 
         } else {
-            throw new Error(response.message || 'Failed to save income');
+            throw new Error(response.message || 'Failed to process request');
         }
 
     } catch (err) {
         setSyncStatus('error');
         console.error('Submit income error:', err);
-        showAlert('incomeError', 'incomeErrorMsg',
-            'Error: ' + err.message, 'error');
-        showToast('Failed to save income: ' + err.message, 'error');
+        showAlert('incomeError', 'incomeErrorMsg', 'Error: ' + err.message, 'error');
+        showToast('Operation failed: ' + err.message, 'error');
     } finally {
-        btn.disabled = false;
-        btn.textContent = isEdit ? '💾 Update Income' : '➕ Add Income';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = isEdit ? '💾 Update Income' : '➕ Add Income';
+        }
     }
 }
+
 
 
 
 // ============================================================
 // SUBMIT EXPENSE
 // ============================================================
+// ============================================================
+// EXPENSE FUNCTIONS (FIXED)
+// ============================================================
+
+function resetExpenseForm() {
+    const form = document.getElementById('expenseForm');
+    if (form) form.reset();
+    setDefaultDates();
+    safeSetValue('expenseEditId', '');
+
+    // Reset UI to Add mode safely
+    safeSetText('expenseFormTitle', '➕ Add New Expense');
+    safeSetText('addExpenseBtn', '➕ Add Expense');
+    safeSetDisplay('cancelExpenseEditBtn', 'none');
+
+    // Reset year
+    const currentYear = new Date().getFullYear();
+    const yearEl = document.getElementById('expenseYear');
+    if (yearEl) {
+        for (let i = 0; i < yearEl.options.length; i++) {
+            if (parseInt(yearEl.options[i].value) === currentYear) {
+                yearEl.selectedIndex = i;
+                break;
+            }
+        }
+    }
+}
+
+function cancelEditExpense() {
+    resetExpenseForm();
+    showToast('Expense edit cancelled', 'warning');
+}
+
+function editExpenseRecord(item) {
+    if (!item) return;
+    switchTab('expense');
+
+    safeSetValue('expenseEditId', item.id);
+    safeSetValue('expenseDate', item.date);
+    safeSetValue('expenseDescription', item.description);
+    safeSetValue('expenseAmount', item.amount);
+    safeSetValue('expenseCategory', item.category);
+
+    const yearEl = document.getElementById('expenseYear');
+    if (yearEl) {
+        for (let i = 0; i < yearEl.options.length; i++) {
+            if (parseInt(yearEl.options[i].value) === parseInt(item.year)) {
+                yearEl.selectedIndex = i;
+                break;
+            }
+        }
+    }
+
+    safeSetText('expenseFormTitle', '✏️ Edit Expense');
+    safeSetText('addExpenseBtn', '💾 Update Expense');
+    safeSetDisplay('cancelExpenseEditBtn', 'inline-flex');
+
+    const form = document.getElementById('expenseForm');
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    showToast('Editing expense entry', 'warning');
+}
+
 async function submitExpense(event) {
     event.preventDefault();
 
     const btn    = document.getElementById('addExpenseBtn');
-    const editId = document.getElementById('expenseEditId').value;
+    const editId = safeGetValue('expenseEditId');
     const isEdit = editId !== '';
 
-    // Get values
-    const date        = document.getElementById('expenseDate').value.trim();
-    const year        = document.getElementById('expenseYear').value;
-    const category    = document.getElementById('expenseCategory').value;
-    const amount      = parseFloat(document.getElementById('expenseAmount').value);
-    const description = document.getElementById('expenseDescription').value.trim();
+    const date        = safeGetValue('expenseDate');
+    const year        = safeGetValue('expenseYear');
+    const category    = safeGetValue('expenseCategory');
+    const amount      = parseFloat(safeGetValue('expenseAmount'));
+    const description = safeGetValue('expenseDescription');
 
-    // Validation
     if (!date || !year || !category || !description || isNaN(amount) || amount <= 0) {
         showAlert('expenseError', 'expenseErrorMsg',
             'Please fill all fields correctly. Amount must be greater than 0.', 'error');
         return;
     }
 
-    // Get month from date
     const monthNum  = getMonthFromDate(date);
     const monthName = MONTHS[monthNum - 1];
 
-    // Disable button to prevent duplicate submit
-    btn.disabled = true;
-    btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
+    }
 
     setSyncStatus('syncing');
 
@@ -2330,9 +2439,7 @@ async function submitExpense(event) {
         });
 
         if (response.status === 'success') {
-
             if (isEdit) {
-                // Update existing record in local data
                 const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
                 if (idx !== -1) {
                     allExpenseData[idx] = {
@@ -2346,13 +2453,9 @@ async function submitExpense(event) {
                         monthNum   : monthNum
                     };
                 }
-
-                showAlert('expenseSuccess', 'expenseSuccessMsg',
-                    `Expense updated successfully!`, 'success');
-                showToast(`Expense updated!`, 'success');
-
+                showAlert('expenseSuccess', 'expenseSuccessMsg', 'Expense updated successfully!', 'success');
+                showToast('Expense updated!', 'success');
             } else {
-                // Add new record to local data
                 allExpenseData.push({
                     id         : response.id || Date.now().toString(),
                     date       : date,
@@ -2364,36 +2467,33 @@ async function submitExpense(event) {
                     monthNum   : monthNum,
                     timestamp  : new Date().toISOString()
                 });
-
-                showAlert('expenseSuccess', 'expenseSuccessMsg',
-                    `Expense of ${formatINR(amount)} added successfully!`, 'success');
+                showAlert('expenseSuccess', 'expenseSuccessMsg', `Expense of ${formatINR(amount)} added successfully!`, 'success');
                 showToast(`Expense ${formatINR(amount)} saved!`, 'success');
             }
 
-            // Reset form back to Add mode
             resetExpenseForm();
-
-            // Update all UI
             updateDashboard();
             renderExpenseTable();
             generateReport();
             setSyncStatus('ok');
 
         } else {
-            throw new Error(response.message || 'Failed to save expense');
+            throw new Error(response.message || 'Failed to process request');
         }
 
     } catch (err) {
         setSyncStatus('error');
         console.error('Submit expense error:', err);
-        showAlert('expenseError', 'expenseErrorMsg',
-            'Error: ' + err.message, 'error');
-        showToast('Failed to save expense: ' + err.message, 'error');
+        showAlert('expenseError', 'expenseErrorMsg', 'Error: ' + err.message, 'error');
+        showToast('Operation failed: ' + err.message, 'error');
     } finally {
-        btn.disabled = false;
-        btn.textContent = isEdit ? '💾 Update Expense' : '➕ Add Expense';
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = isEdit ? '💾 Update Expense' : '➕ Add Expense';
+        }
     }
 }
+
 
 
 // ============================================================
