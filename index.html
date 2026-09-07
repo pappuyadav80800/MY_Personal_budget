@@ -695,6 +695,82 @@
 .final-summary-item-value.negative {
     color: #fca5a5 !important;
 }
+/* ===== REPORTS 3-COLOR CARDS (EXACT MATCH DASHBOARD) ===== */
+
+/* Section Outer Box */
+.year-summary-box, .final-summary-box {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 14px !important;
+    padding: 22px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+    margin-bottom: 24px !important;
+}
+
+.year-summary-box h3, .final-summary-box h3 {
+    color: #0b2545 !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.8px !important;
+    margin-bottom: 18px !important;
+    text-transform: uppercase !important;
+}
+
+.year-summary-grid, .final-summary-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+    gap: 16px !important;
+}
+
+/* Card 1: Income -> Solid Navy Blue */
+.year-summary-item:nth-child(1),
+.final-summary-item:nth-child(1) {
+    background: #133863 !important;
+    border-radius: 12px !important;
+    padding: 20px 16px !important;
+    text-align: center !important;
+    box-shadow: 0 4px 10px rgba(19, 56, 99, 0.25) !important;
+}
+
+/* Card 2: Expense -> Solid Red */
+.year-summary-item:nth-child(2),
+.final-summary-item:nth-child(2) {
+    background: #991b1b !important;
+    border-radius: 12px !important;
+    padding: 20px 16px !important;
+    text-align: center !important;
+    box-shadow: 0 4px 10px rgba(153, 27, 27, 0.25) !important;
+}
+
+/* Card 3: Balance -> Solid Green */
+.year-summary-item:nth-child(3),
+.final-summary-item:nth-child(3) {
+    background: #0d6e48 !important;
+    border-radius: 12px !important;
+    padding: 20px 16px !important;
+    text-align: center !important;
+    box-shadow: 0 4px 10px rgba(13, 110, 72, 0.25) !important;
+}
+
+/* Labels & Values Styling */
+.year-summary-item-label, .final-summary-item-label {
+    color: #fbbf24 !important;
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.6px !important;
+    margin-bottom: 6px !important;
+    text-transform: uppercase !important;
+}
+
+.year-summary-item-value, .final-summary-item-value {
+    color: #ffffff !important;
+    font-size: 26px !important;
+    font-weight: 800 !important;
+}
+
+.year-summary-item-value.negative, .final-summary-item-value.negative {
+    color: #fca5a5 !important;
+}
 
 
     </style>
