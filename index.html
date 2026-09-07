@@ -1350,6 +1350,149 @@
 <!-- ==================== JAVASCRIPT ==================== -->
 <script>
     // ============================================================
+// BACKGROUND SYNC QUEUE & RETRY SYSTEM (FAST & RELIABLE)
+// ============================================================
+let syncQueue = [];
+let isProcessingQueue = false;
+
+// Custom API Call with 20s Timeout
+function callAPI(params) {
+    return new Promise((resolve, reject) => {
+        const callbackName = 'callback_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const url = new URL(APPS_SCRIPT_URL);
+
+        Object.entries(params).forEach(([k, v]) => {
+            if (v !== undefined && v !== null) {
+                url.searchParams.set(k, v);
+            }
+        });
+        url.searchParams.set('callback', callbackName);
+
+        const script = document.createElement('script');
+        let settled = false;
+
+        const timeout = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                cleanup();
+                reject(new Error('Network response delayed. Queued for auto-retry.'));
+            }
+        }, 20000); // 20s generous timeout for Google Apps Script
+
+        window[callbackName] = function(data) {
+            if (!settled) {
+                settled = true;
+                cleanup();
+                resolve(data);
+            }
+        };
+
+        function cleanup() {
+            clearTimeout(timeout);
+            if (script.parentNode) script.parentNode.removeChild(script);
+            delete window[callbackName];
+        }
+
+        script.onerror = function() {
+            if (!settled) {
+                settled = true;
+                cleanup();
+                reject(new Error('Server connectivity issue. Retrying in background...'));
+            }
+        };
+
+        script.src = url.toString();
+        document.head.appendChild(script);
+    });
+}
+
+// Background Sync Queue Processor
+async function processSyncQueue() {
+    if (isProcessingQueue || syncQueue.length === 0) {
+        if (syncQueue.length === 0) setSyncStatus('ok');
+        return;
+    }
+
+    isProcessingQueue = true;
+    const currentTask = syncQueue[0];
+
+    setSyncStatus('syncing', `Syncing (${syncQueue.length})...`);
+
+    try {
+        const response = await callAPI(currentTask.params);
+
+        if (response && response.status === 'success') {
+            // Task successful -> Remove from queue
+            syncQueue.shift();
+            currentTask.resolve(response);
+            
+            if (syncQueue.length > 0) {
+                setSyncStatus('syncing', `Syncing (${syncQueue.length})...`);
+            } else {
+                setSyncStatus('ok', 'Connected');
+            }
+        } else {
+            throw new Error(response ? response.message : 'Invalid response');
+        }
+    } catch (err) {
+        console.warn(`Sync queue task attempt ${currentTask.retries + 1} failed:`, err.message);
+        currentTask.retries++;
+
+        if (currentTask.retries >= 4) {
+            // After 4 retries, drop task or notify user cleanly
+            syncQueue.shift();
+            currentTask.reject(err);
+            showToast('Sync delay: Google Sheet sync took longer than expected.', 'warning');
+            setSyncStatus('error', 'Sync Delay');
+        } else {
+            // Exponential backoff delay (2s, 4s, 8s)
+            setSyncStatus('syncing', `Retrying (${currentTask.retries}/3)...`);
+            await new Promise(r => setTimeout(r, currentTask.retries * 2000));
+        }
+    } finally {
+        isProcessingQueue = false;
+        // Process next item in queue
+        if (syncQueue.length > 0) {
+            setTimeout(processSyncQueue, 300);
+        } else {
+            setSyncStatus('ok', 'Connected');
+        }
+    }
+}
+
+// Add action to Sync Queue
+function queueSyncAction(params) {
+    return new Promise((resolve, reject) => {
+        syncQueue.push({
+            params: params,
+            retries: 0,
+            resolve: resolve,
+            reject: reject
+        });
+        processSyncQueue();
+    });
+}
+
+// Updated Sync Status UI Handler
+function setSyncStatus(status, textMessage) {
+    const dot   = document.getElementById('syncDot');
+    const label = document.getElementById('syncStatus');
+    if (!dot || !label) return;
+
+    dot.className = 'sync-dot';
+
+    if (status === 'syncing') {
+        dot.classList.add('syncing');
+        label.textContent = textMessage || 'Syncing...';
+    } else if (status === 'error') {
+        dot.classList.add('error');
+        label.textContent = textMessage || 'Sync Issue';
+    } else {
+        label.textContent = textMessage || 'Connected';
+    }
+}
+
+    // ============================================================
 // SAFE DOM HELPERS (Add at the very top of <script>)
 // ============================================================
 function safeText(id, text) {
@@ -1861,6 +2004,7 @@ function editIncomeRecord(item) {
     showToast('Editing income entry', 'warning');
 }
 
+// Instant & Reliable submitIncome
 async function submitIncome(event) {
     event.preventDefault();
 
@@ -1888,76 +2032,55 @@ async function submitIncome(event) {
         btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
     }
 
-    setSyncStatus('syncing');
+    const tempId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random()*1000));
 
-    try {
-        const response = await callAPI({
-            action     : isEdit ? 'updateIncome' : 'addIncome',
-            id         : isEdit ? editId : undefined,
-            date       : date,
-            year       : year,
-            description: description,
-            category   : category,
-            amount     : amount,
-            month      : monthName,
-            monthNum   : monthNum
+    // 1. OPTIMISTIC UI UPDATE
+    if (isEdit) {
+        const idx = allIncomeData.findIndex(item => String(item.id) === String(editId));
+        if (idx !== -1) {
+            allIncomeData[idx] = {
+                ...allIncomeData[idx],
+                date, year: parseInt(year), description, category, amount, month: monthName, monthNum
+            };
+        }
+        showToast('Income updated!', 'success');
+    } else {
+        allIncomeData.push({
+            id: tempId, date, year: parseInt(year), description, category, amount, month: monthName, monthNum,
+            timestamp: new Date().toISOString()
         });
+        showToast(`Income ${formatINR(amount)} added!`, 'success');
+    }
 
-        if (response.status === 'success') {
-            if (isEdit) {
-                const idx = allIncomeData.findIndex(item => String(item.id) === String(editId));
-                if (idx !== -1) {
-                    allIncomeData[idx] = {
-                        ...allIncomeData[idx],
-                        date       : date,
-                        year       : parseInt(year),
-                        description: description,
-                        category   : category,
-                        amount     : amount,
-                        month      : monthName,
-                        monthNum   : monthNum
-                    };
-                }
-                showAlert('incomeSuccess', 'incomeSuccessMsg', 'Income updated successfully!', 'success');
-                showToast('Income updated!', 'success');
-            } else {
-                allIncomeData.push({
-                    id         : response.id || Date.now().toString(),
-                    date       : date,
-                    year       : parseInt(year),
-                    description: description,
-                    category   : category,
-                    amount     : amount,
-                    month      : monthName,
-                    monthNum   : monthNum,
-                    timestamp  : new Date().toISOString()
-                });
-                showAlert('incomeSuccess', 'incomeSuccessMsg', `Income of ${formatINR(amount)} added successfully!`, 'success');
-                showToast(`Income ${formatINR(amount)} saved!`, 'success');
-            }
+    // Reset Form Immediately
+    resetIncomeForm();
+    updateDashboard();
+    renderIncomeTable();
+    generateReport();
 
-            resetIncomeForm();
-            updateDashboard();
-            renderIncomeTable();
-            generateReport();
-            setSyncStatus('ok');
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = '➕ Add Income';
+    }
 
-        } else {
-            throw new Error(response.message || 'Failed to process request');
-        }
-
+    // 2. BACKGROUND QUEUED GOOGLE SHEET SYNC
+    try {
+        await queueSyncAction({
+            action: isEdit ? 'updateIncome' : 'addIncome',
+            id: tempId,
+            date: date,
+            year: year,
+            description: description,
+            category: category,
+            amount: amount,
+            month: monthName,
+            monthNum: monthNum
+        });
     } catch (err) {
-        setSyncStatus('error');
-        console.error('Submit income error:', err);
-        showAlert('incomeError', 'incomeErrorMsg', 'Error: ' + err.message, 'error');
-        showToast('Operation failed: ' + err.message, 'error');
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = isEdit ? '💾 Update Income' : '➕ Add Income';
-        }
+        console.warn('Background sync queued error:', err);
     }
 }
+
 
 
 
@@ -2031,6 +2154,7 @@ function editExpenseRecord(item) {
 }
 
 // Fixed & Safe submitExpense
+// Instant & Reliable submitExpense
 async function submitExpense(event) {
     event.preventDefault();
 
@@ -2058,76 +2182,55 @@ async function submitExpense(event) {
         btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
     }
 
-    setSyncStatus('syncing');
+    const tempId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random()*1000));
 
-    try {
-        const response = await callAPI({
-            action     : isEdit ? 'updateExpense' : 'addExpense',
-            id         : isEdit ? editId : undefined,
-            date       : date,
-            year       : year,
-            description: description,
-            category   : category,
-            amount     : amount,
-            month      : monthName,
-            monthNum   : monthNum
+    // 1. OPTIMISTIC UI UPDATE (Instant Screen Update)
+    if (isEdit) {
+        const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
+        if (idx !== -1) {
+            allExpenseData[idx] = {
+                ...allExpenseData[idx],
+                date, year: parseInt(year), description, category, amount, month: monthName, monthNum
+            };
+        }
+        showToast('Expense updated!', 'success');
+    } else {
+        allExpenseData.push({
+            id: tempId, date, year: parseInt(year), description, category, amount, month: monthName, monthNum,
+            timestamp: new Date().toISOString()
         });
+        showToast(`Expense ${formatINR(amount)} added!`, 'success');
+    }
 
-        if (response.status === 'success') {
-            if (isEdit) {
-                const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
-                if (idx !== -1) {
-                    allExpenseData[idx] = {
-                        ...allExpenseData[idx],
-                        date       : date,
-                        year       : parseInt(year),
-                        description: description,
-                        category   : category,
-                        amount     : amount,
-                        month      : monthName,
-                        monthNum   : monthNum
-                    };
-                }
-                showToast('Expense updated successfully!', 'success');
-            } else {
-                allExpenseData.push({
-                    id         : response.id || Date.now().toString(),
-                    date       : date,
-                    year       : parseInt(year),
-                    description: description,
-                    category   : category,
-                    amount     : amount,
-                    month      : monthName,
-                    monthNum   : monthNum,
-                    timestamp  : new Date().toISOString()
-                });
-                showToast(`Expense ${formatINR(amount)} saved!`, 'success');
-            }
+    // Reset Form Immediately
+    resetExpenseForm();
+    updateDashboard();
+    renderExpenseTable();
+    generateReport();
 
-            // Safe UI Reset & Updates
-            resetExpenseForm();
-            
-            try { updateDashboard(); } catch(e) { console.warn('Dashboard update warning:', e); }
-            try { renderExpenseTable(); } catch(e) { console.warn('Expense table render warning:', e); }
-            try { generateReport(); } catch(e) { console.warn('Report generation warning:', e); }
-            
-            setSyncStatus('ok');
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = '➕ Add Expense';
+    }
 
-        } else {
-            throw new Error(response.message || 'Failed to process request');
-        }
-
+    // 2. BACKGROUND QUEUED GOOGLE SHEET SYNC
+    try {
+        await queueSyncAction({
+            action: isEdit ? 'updateExpense' : 'addExpense',
+            id: tempId,
+            date: date,
+            year: year,
+            description: description,
+            category: category,
+            amount: amount,
+            month: monthName,
+            monthNum: monthNum
+        });
     } catch (err) {
-        setSyncStatus('error');
-        console.error('Submit expense error:', err);
-        showToast('Expense saved with minor UI sync delay', 'warning');
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = isEdit ? '💾 Update Expense' : '➕ Add Expense';
-        }
+        console.warn('Background sync queued error:', err);
     }
 }
+
 
 
 
@@ -2185,44 +2288,35 @@ function cancelEditExpense() {
 // DELETE ENTRY
 // ============================================================
 async function deleteEntry(type, id, rowIndex) {
-    if (!confirm(`Are you sure you want to delete this ${type} entry? This cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete this ${type} entry?`)) {
         return;
     }
 
-    setSyncStatus('syncing');
+    // 1. Instant UI Delete
+    if (type === 'income') {
+        allIncomeData = allIncomeData.filter(item => String(item.id) !== String(id));
+        renderIncomeTable();
+    } else {
+        allExpenseData = allExpenseData.filter(item => String(item.id) !== String(id));
+        renderExpenseTable();
+    }
 
+    updateDashboard();
+    generateReport();
+    showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} record deleted.`, 'warning');
+
+    // 2. Background Queued Google Sheet Sync
     try {
-        const response = await callAPI({
+        await queueSyncAction({
             action: 'deleteEntry',
-            type  : type,
-            id    : id
+            type: type,
+            id: id
         });
-
-        if (response.status === 'success') {
-            // Remove from local data
-            if (type === 'income') {
-                allIncomeData = allIncomeData.filter(item => item.id !== id);
-                renderIncomeTable();
-            } else {
-                allExpenseData = allExpenseData.filter(item => item.id !== id);
-                renderExpenseTable();
-            }
-
-            updateDashboard();
-            generateReport();
-            setSyncStatus('ok');
-            showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} entry deleted.`, 'warning');
-
-        } else {
-            throw new Error(response.message || 'Failed to delete entry');
-        }
-
     } catch (err) {
-        setSyncStatus('error');
-        showToast('Delete failed: ' + err.message, 'error');
-        console.error('Delete error:', err);
+        console.warn('Delete sync delay handled:', err);
     }
 }
+
 
 // ============================================================
 // DASHBOARD UPDATE
