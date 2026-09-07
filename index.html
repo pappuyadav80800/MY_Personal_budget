@@ -1278,37 +1278,43 @@
         </div>
 
         <!-- Monthly Report Table -->
-        <div class="card" style="margin-bottom:24px;">
-            <div class="card-header">
-                <span class="card-title" id="monthlyReportTitle">📅 Monthly Report</span>
-            </div>
-            <div class="card-body" style="padding:0;">
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th>Income</th>
-                                <th>Expense</th>
-                                <th>Pending Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody id="monthlyReportBody">
-                            <tr>
-                                <td colspan="4">
-                                    <div class="empty-state">
-                                        <span class="empty-state-icon">📅</span>
-                                        <h3>No Report Data</h3>
-                                        <p>Select a year to view monthly report.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                        <tfoot id="monthlyReportFoot"></tfoot>
-                    </table>
-                </div>
-            </div>
+        <!-- Monthly Report Card with Show/Hide Toggle -->
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-header">
+        <span class="card-title" id="monthlyReportTitle">📅 Monthly Report</span>
+        <button class="btn btn-primary btn-sm" id="toggleReportRecordsBtn" onclick="toggleRecords('report')" style="background:#133863; color:#fff; border:none; padding:6px 14px; border-radius:20px; font-weight:700; cursor:pointer;">
+            👁️ Show Records
+        </button>
+    </div>
+    <!-- By default hidden -->
+    <div class="card-body" id="monthlyReportContainer" style="padding:0; display:none;">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Income</th>
+                        <th>Expense</th>
+                        <th>Pending Balance</th>
+                    </tr>
+                </thead>
+                <tbody id="monthlyReportBody">
+                    <tr>
+                        <td colspan="4">
+                            <div class="empty-state">
+                                <span class="empty-state-icon">📅</span>
+                                <h3>No Report Data</h3>
+                                <p>Select a year to view monthly report.</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+                <tfoot id="monthlyReportFoot"></tfoot>
+            </table>
         </div>
+    </div>
+</div>
+
 
         <!-- Section Divider -->
         <hr class="section-divider">
@@ -2866,6 +2872,7 @@ function editExpenseRecord(item) {
     // initApp() तब चलेगा जब handleLogin() में login successful होगा
 });
 // Toggle Show/Hide Records Table
+// Toggle Show/Hide Records Table (Income, Expense & Reports)
 function toggleRecords(type) {
     if (type === 'income') {
         const container = document.getElementById('incomeTableContainer');
@@ -2887,8 +2894,19 @@ function toggleRecords(type) {
             container.style.display = 'none';
             if (btn) btn.innerHTML = '👁️ Show Records';
         }
+    } else if (type === 'report') {
+        const container = document.getElementById('monthlyReportContainer');
+        const btn = document.getElementById('toggleReportRecordsBtn');
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            if (btn) btn.innerHTML = '🙈 Hide Records';
+        } else {
+            container.style.display = 'none';
+            if (btn) btn.innerHTML = '👁️ Show Records';
+        }
     }
 }
+
 
 
 </script>
