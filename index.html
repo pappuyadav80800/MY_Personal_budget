@@ -1063,50 +1063,52 @@
         </div>
 
         <!-- Income List -->
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title">📋 Income List</span>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <select class="filter-select" id="incomeListYearFilter"
-                            onchange="renderIncomeTable()" style="min-width:120px;">
-                        <option value="all">All Years</option>
-                    </select>
-                    <button class="btn-refresh" onclick="refreshAllData()">
-                        <span class="refresh-icon">🔄</span> Refresh
-                    </button>
-                </div>
-            </div>
-            <div class="card-body" style="padding:0;">
-                <div class="table-wrapper">
-                    <table>
-                       <thead>
-    <tr>
-        <th>#</th>
-        <th>Date</th>
-        <th>Year</th>
-        <th>Description</th>
-        <th>Category</th>
-        <th>Amount</th>
-        
-        <th>Action</th>
-    </tr>
-</thead>
-<tbody id="incomeTableBody">
-
-                            <tr>
-                                <td colspan="7">
-                                    <div class="empty-state">
-                                        <span class="empty-state-icon">💰</span>
-                                        <h3>No Income Records</h3>
-                                        <p>Add your first income entry using the form above.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+       <!-- Income List with Show/Hide Toggle -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📋 Income List</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary btn-sm" id="toggleIncomeRecordsBtn" onclick="toggleRecords('income')" style="background:#133863; color:#fff; border:none; padding:6px 14px; border-radius:20px; font-weight:700; cursor:pointer;">
+                👁️ Show Records
+            </button>
+            <select class="filter-select" id="incomeListYearFilter" onchange="renderIncomeTable()" style="min-width:110px;">
+                <option value="all">All Years</option>
+            </select>
+            <button class="btn-refresh" onclick="refreshAllData()">
+                <span class="refresh-icon">🔄</span>
+            </button>
         </div>
+    </div>
+    <!-- By default hidden -->
+    <div class="card-body" id="incomeTableContainer" style="padding:0; display:none;">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Year</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="incomeTableBody">
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <span class="empty-state-icon">💰</span>
+                                <h3>No Income Records</h3>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
     </div>
     <!-- END INCOME TAB -->
 
@@ -1189,48 +1191,52 @@
         </div>
 
                 <!-- Expense List -->
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title">📋 Expense List</span>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <select class="filter-select" id="expenseListYearFilter"
-                            onchange="renderExpenseTable()" style="min-width:120px;">
-                        <option value="all">All Years</option>
-                    </select>
-                    <button class="btn-refresh" onclick="refreshAllData()">
-                        <span class="refresh-icon">🔄</span> Refresh
-                    </button>
-                </div>
-            </div>
-            <div class="card-body" style="padding:0;">
-                <div class="table-wrapper">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Date</th>
-                                <th>Year</th>
-                                <th>Description</th>
-                                <th>Category</th>
-                                <th>Amount</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="expenseTableBody">
-                            <tr>
-                                <td colspan="7">
-                                    <div class="empty-state">
-                                        <span class="empty-state-icon">💸</span>
-                                        <h3>No Expense Records</h3>
-                                        <p>Add your first expense entry using the form above.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+        <!-- Expense List with Show/Hide Toggle -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📋 Expense List</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-primary btn-sm" id="toggleExpenseRecordsBtn" onclick="toggleRecords('expense')" style="background:#133863; color:#fff; border:none; padding:6px 14px; border-radius:20px; font-weight:700; cursor:pointer;">
+                👁️ Show Records
+            </button>
+            <select class="filter-select" id="expenseListYearFilter" onchange="renderExpenseTable()" style="min-width:110px;">
+                <option value="all">All Years</option>
+            </select>
+            <button class="btn-refresh" onclick="refreshAllData()">
+                <span class="refresh-icon">🔄</span>
+            </button>
         </div>
+    </div>
+    <!-- By default hidden -->
+    <div class="card-body" id="expenseTableContainer" style="padding:0; display:none;">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Year</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="expenseTableBody">
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <span class="empty-state-icon">💸</span>
+                                <h3>No Expense Records</h3>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
     </div>
     <!-- END EXPENSE TAB -->
 
@@ -2859,6 +2865,30 @@ function editExpenseRecord(item) {
     // अगर logged in नहीं है, तो सिर्फ login form दिखेगा
     // initApp() तब चलेगा जब handleLogin() में login successful होगा
 });
+// Toggle Show/Hide Records Table
+function toggleRecords(type) {
+    if (type === 'income') {
+        const container = document.getElementById('incomeTableContainer');
+        const btn = document.getElementById('toggleIncomeRecordsBtn');
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            if (btn) btn.innerHTML = '🙈 Hide Records';
+        } else {
+            container.style.display = 'none';
+            if (btn) btn.innerHTML = '👁️ Show Records';
+        }
+    } else if (type === 'expense') {
+        const container = document.getElementById('expenseTableContainer');
+        const btn = document.getElementById('toggleExpenseRecordsBtn');
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            if (btn) btn.innerHTML = '🙈 Hide Records';
+        } else {
+            container.style.display = 'none';
+            if (btn) btn.innerHTML = '👁️ Show Records';
+        }
+    }
+}
 
 
 </script>
