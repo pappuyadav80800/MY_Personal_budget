@@ -1071,6 +1071,10 @@
             <button class="btn btn-primary btn-sm" id="toggleIncomeRecordsBtn" onclick="toggleRecords('income')" style="background:#133863; color:#fff; border:none; padding:6px 14px; border-radius:20px; font-weight:700; cursor:pointer;">
                 👁️ Show Records
             </button>
+            <span id="incomeRecordCountBadge" style="background:#f1f5f9; color:#0b2545; font-size:12px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #cbd5e1;">
+    0 Records
+</span>
+
             <select class="filter-select" id="incomeListYearFilter" onchange="renderIncomeTable()" style="min-width:110px;">
                 <option value="all">All Years</option>
             </select>
@@ -1199,6 +1203,10 @@
             <button class="btn btn-primary btn-sm" id="toggleExpenseRecordsBtn" onclick="toggleRecords('expense')" style="background:#133863; color:#fff; border:none; padding:6px 14px; border-radius:20px; font-weight:700; cursor:pointer;">
                 👁️ Show Records
             </button>
+            <span id="expenseRecordCountBadge" style="background:#f1f5f9; color:#0b2545; font-size:12px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #cbd5e1;">
+    0 Records
+</span>
+
             <select class="filter-select" id="expenseListYearFilter" onchange="renderExpenseTable()" style="min-width:110px;">
                 <option value="all">All Years</option>
             </select>
@@ -2442,6 +2450,13 @@ function renderRecentExpense(data) {
 // RENDER INCOME TABLE (Full List)
 // ============================================================
 function renderIncomeTable() {
+    // Update Income Records Count Badge
+const incomeBadge = document.getElementById('incomeRecordCountBadge');
+if (incomeBadge) {
+    const totalCount = yearFilter === 'all' ? allIncomeData.length : data.length;
+    incomeBadge.textContent = `${totalCount} ${totalCount === 1 ? 'Record' : 'Records'}`;
+}
+
     const tbody      = document.getElementById('incomeTableBody');
     const yearFilter = document.getElementById('incomeListYearFilter').value;
 
@@ -2513,6 +2528,13 @@ function renderIncomeTable() {
 // RENDER EXPENSE TABLE (Full List)
 // ============================================================
 function renderExpenseTable() {
+    // Update Expense Records Count Badge
+const expenseBadge = document.getElementById('expenseRecordCountBadge');
+if (expenseBadge) {
+    const totalCount = yearFilter === 'all' ? allExpenseData.length : data.length;
+    expenseBadge.textContent = `${totalCount} ${totalCount === 1 ? 'Record' : 'Records'}`;
+}
+
     const tbody      = document.getElementById('expenseTableBody');
     const yearFilter = document.getElementById('expenseListYearFilter').value;
 
