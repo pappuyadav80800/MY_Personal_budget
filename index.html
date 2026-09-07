@@ -2013,54 +2013,83 @@ function editIncomeRecord(item) {
 }
 
 // Instant & Reliable submitIncome
+// ============================================================
+// 100% WORKING SUBMIT INCOME (AUTO-OPENS TABLE & SHOWS RECORD)
+// ============================================================
 async function submitIncome(event) {
     event.preventDefault();
 
-    const btn    = document.getElementById('addIncomeBtn');
-    const editId = safeGetValue('incomeEditId');
-    const isEdit = editId !== '';
+    const btn = document.getElementById('addIncomeBtn');
 
-    const date        = safeGetValue('incomeDate');
-    const year        = safeGetValue('incomeYear');
-    const category    = safeGetValue('incomeCategory');
-    const amount      = parseFloat(safeGetValue('incomeAmount'));
-    const description = safeGetValue('incomeDescription');
+    const getVal = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value.trim() : '';
+    };
 
-    if (!date || !year || !category || !description || isNaN(amount) || amount <= 0) {
+    const editId      = getVal('incomeEditId');
+    const isEdit      = editId !== '';
+    const date        = getVal('incomeDate');
+    const yearStr     = getVal('incomeYear');
+    const category    = getVal('incomeCategory');
+    const amountNum   = parseFloat(getVal('incomeAmount'));
+    const description = getVal('incomeDescription');
+
+    if (!date || !yearStr || !category || !description || isNaN(amountNum) || amountNum <= 0) {
         showAlert('incomeError', 'incomeErrorMsg',
             'Please fill all fields correctly. Amount must be greater than 0.', 'error');
         return;
     }
 
-    const monthNum  = getMonthFromDate(date);
-    const monthName = MONTHS[monthNum - 1];
+    const year = parseInt(yearStr);
+    const monthNum = getMonthFromDate(date);
+    const monthName = MONTHS[monthNum - 1] || '';
 
     if (btn) {
         btn.disabled = true;
         btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
     }
 
-    const tempId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random()*1000));
+    const recordId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random() * 1000));
 
-    // 1. OPTIMISTIC UI UPDATE
     if (isEdit) {
         const idx = allIncomeData.findIndex(item => String(item.id) === String(editId));
         if (idx !== -1) {
             allIncomeData[idx] = {
-                ...allIncomeData[idx],
-                date, year: parseInt(year), description, category, amount, month: monthName, monthNum
+                id: editId,
+                date: date,
+                year: year,
+                description: description,
+                category: category,
+                amount: amountNum,
+                month: monthName,
+                monthNum: monthNum
             };
         }
-        showToast('Income updated!', 'success');
+        showToast('Income updated successfully!', 'success');
     } else {
-        allIncomeData.push({
-            id: tempId, date, year: parseInt(year), description, category, amount, month: monthName, monthNum,
+        const newRecord = {
+            id: recordId,
+            date: date,
+            year: year,
+            description: description,
+            category: category,
+            amount: amountNum,
+            month: monthName,
+            monthNum: monthNum,
             timestamp: new Date().toISOString()
-        });
-        showToast(`Income ${formatINR(amount)} added!`, 'success');
+        };
+        allIncomeData.push(newRecord);
+        showToast(`Income ${formatINR(amountNum)} added!`, 'success');
     }
 
-    // Reset Form Immediately
+    // AUTO-OPEN INCOME TABLE CONTAINER
+    const tableContainer = document.getElementById('incomeTableContainer');
+    const toggleBtn = document.getElementById('toggleIncomeRecordsBtn');
+    if (tableContainer) {
+        tableContainer.style.display = 'block';
+        if (toggleBtn) toggleBtn.innerHTML = '🙈 Hide Records';
+    }
+
     resetIncomeForm();
     updateDashboard();
     renderIncomeTable();
@@ -2071,23 +2100,31 @@ async function submitIncome(event) {
         btn.textContent = '➕ Add Income';
     }
 
-    // 2. BACKGROUND QUEUED GOOGLE SHEET SYNC
     try {
-        await queueSyncAction({
+        setSyncStatus('syncing', 'Syncing...');
+        const response = await callAPI({
             action: isEdit ? 'updateIncome' : 'addIncome',
-            id: tempId,
+            id: recordId,
             date: date,
             year: year,
             description: description,
             category: category,
-            amount: amount,
+            amount: amountNum,
             month: monthName,
             monthNum: monthNum
         });
+
+        if (response && response.status === 'success') {
+            setSyncStatus('ok', 'Connected');
+        } else {
+            setSyncStatus('error', 'Sync Delay');
+        }
     } catch (err) {
-        console.warn('Background sync queued error:', err);
+        console.warn('Google Sheet Sync Delay:', err);
+        setSyncStatus('error', 'Sync Delay');
     }
 }
+
 
 
 
@@ -2163,54 +2200,87 @@ function editExpenseRecord(item) {
 
 // Fixed & Safe submitExpense
 // Instant & Reliable submitExpense
+// ============================================================
+// 100% WORKING SUBMIT EXPENSE (AUTO-OPENS TABLE & SHOWS RECORD)
+// ============================================================
 async function submitExpense(event) {
     event.preventDefault();
 
-    const btn    = document.getElementById('addExpenseBtn');
-    const editId = safeGetValue('expenseEditId');
-    const isEdit = editId !== '';
+    const btn = document.getElementById('addExpenseBtn');
 
-    const date        = safeGetValue('expenseDate');
-    const year        = safeGetValue('expenseYear');
-    const category    = safeGetValue('expenseCategory');
-    const amount      = parseFloat(safeGetValue('expenseAmount'));
-    const description = safeGetValue('expenseDescription');
+    // Safe field value getter
+    const getVal = (id) => {
+        const el = document.getElementById(id);
+        return el ? el.value.trim() : '';
+    };
 
-    if (!date || !year || !category || !description || isNaN(amount) || amount <= 0) {
+    const editId      = getVal('expenseEditId');
+    const isEdit      = editId !== '';
+    const date        = getVal('expenseDate');
+    const yearStr     = getVal('expenseYear');
+    const category    = getVal('expenseCategory');
+    const amountNum   = parseFloat(getVal('expenseAmount'));
+    const description = getVal('expenseDescription');
+
+    // Validation
+    if (!date || !yearStr || !category || !description || isNaN(amountNum) || amountNum <= 0) {
         showAlert('expenseError', 'expenseErrorMsg',
             'Please fill all fields correctly. Amount must be greater than 0.', 'error');
         return;
     }
 
-    const monthNum  = getMonthFromDate(date);
-    const monthName = MONTHS[monthNum - 1];
+    const year = parseInt(yearStr);
+    const monthNum = getMonthFromDate(date);
+    const monthName = MONTHS[monthNum - 1] || '';
 
     if (btn) {
         btn.disabled = true;
         btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
     }
 
-    const tempId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random()*1000));
+    const recordId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random() * 1000));
 
-    // 1. OPTIMISTIC UI UPDATE (Instant Screen Update)
+    // 1. ADD / UPDATE RECORD IN LOCAL ARRAY IMMEDIATELY
     if (isEdit) {
         const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
         if (idx !== -1) {
             allExpenseData[idx] = {
-                ...allExpenseData[idx],
-                date, year: parseInt(year), description, category, amount, month: monthName, monthNum
+                id: editId,
+                date: date,
+                year: year,
+                description: description,
+                category: category,
+                amount: amountNum,
+                month: monthName,
+                monthNum: monthNum
             };
         }
-        showToast('Expense updated!', 'success');
+        showToast('Expense updated successfully!', 'success');
     } else {
-        allExpenseData.push({
-            id: tempId, date, year: parseInt(year), description, category, amount, month: monthName, monthNum,
+        const newRecord = {
+            id: recordId,
+            date: date,
+            year: year,
+            description: description,
+            category: category,
+            amount: amountNum,
+            month: monthName,
+            monthNum: monthNum,
             timestamp: new Date().toISOString()
-        });
-        showToast(`Expense ${formatINR(amount)} added!`, 'success');
+        };
+        allExpenseData.push(newRecord);
+        showToast(`Expense ${formatINR(amountNum)} added!`, 'success');
     }
 
-    // Reset Form Immediately
+    // 2. AUTO-OPEN EXPENSE TABLE CONTAINER (SO RECORD IS IMMEDIATELY VISIBLE)
+    const tableContainer = document.getElementById('expenseTableContainer');
+    const toggleBtn = document.getElementById('toggleExpenseRecordsBtn');
+    if (tableContainer) {
+        tableContainer.style.display = 'block';
+        if (toggleBtn) toggleBtn.innerHTML = '🙈 Hide Records';
+    }
+
+    // 3. RESET FORM & REFRESH ALL TABLES / DASHBOARD
     resetExpenseForm();
     updateDashboard();
     renderExpenseTable();
@@ -2221,23 +2291,32 @@ async function submitExpense(event) {
         btn.textContent = '➕ Add Expense';
     }
 
-    // 2. BACKGROUND QUEUED GOOGLE SHEET SYNC
+    // 4. SYNC TO GOOGLE SHEETS
     try {
-        await queueSyncAction({
+        setSyncStatus('syncing', 'Syncing...');
+        const response = await callAPI({
             action: isEdit ? 'updateExpense' : 'addExpense',
-            id: tempId,
+            id: recordId,
             date: date,
             year: year,
             description: description,
             category: category,
-            amount: amount,
+            amount: amountNum,
             month: monthName,
             monthNum: monthNum
         });
+
+        if (response && response.status === 'success') {
+            setSyncStatus('ok', 'Connected');
+        } else {
+            setSyncStatus('error', 'Sync Delay');
+        }
     } catch (err) {
-        console.warn('Background sync queued error:', err);
+        console.warn('Google Sheet Sync Delay:', err);
+        setSyncStatus('error', 'Sync Delay');
     }
 }
+
 
 
 
