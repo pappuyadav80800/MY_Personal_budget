@@ -2203,119 +2203,119 @@ function editExpenseRecord(item) {
 // ============================================================
 // 100% WORKING SUBMIT EXPENSE (AUTO-OPENS TABLE & SHOWS RECORD)
 // ============================================================
+// ============================================================
+// FIXED & BULLETPROOF SUBMIT EXPENSE (MIRRORS WORKING INCOME FLOW)
+// ============================================================
 async function submitExpense(event) {
     event.preventDefault();
 
     const btn = document.getElementById('addExpenseBtn');
 
-    // Safe field value getter
-    const getVal = (id) => {
+    // Safe field reader helper
+    const getFieldVal = (id) => {
         const el = document.getElementById(id);
         return el ? el.value.trim() : '';
     };
 
-    const editId      = getVal('expenseEditId');
+    const editId      = getFieldVal('expenseEditId');
     const isEdit      = editId !== '';
-    const date        = getVal('expenseDate');
-    const yearStr     = getVal('expenseYear');
-    const category    = getVal('expenseCategory');
-    const amountNum   = parseFloat(getVal('expenseAmount'));
-    const description = getVal('expenseDescription');
+    const date        = getFieldVal('expenseDate');
+    const yearRaw     = getFieldVal('expenseYear');
+    const category    = getFieldVal('expenseCategory');
+    const amountVal   = parseFloat(getFieldVal('expenseAmount'));
+    const description = getFieldVal('expenseDescription');
 
-    // Validation
-    if (!date || !yearStr || !category || !description || isNaN(amountNum) || amountNum <= 0) {
+    // 1. Strict Validation
+    if (!date || !yearRaw || !category || !description || isNaN(amountVal) || amountVal <= 0) {
         showAlert('expenseError', 'expenseErrorMsg',
             'Please fill all fields correctly. Amount must be greater than 0.', 'error');
         return;
     }
 
-    const year = parseInt(yearStr);
+    const year = parseInt(yearRaw);
     const monthNum = getMonthFromDate(date);
     const monthName = MONTHS[monthNum - 1] || '';
 
+    // 2. Change Button State to Saving
     if (btn) {
         btn.disabled = true;
         btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
     }
 
+    setSyncStatus('syncing', 'Syncing...');
+
     const recordId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random() * 1000));
 
-    // 1. ADD / UPDATE RECORD IN LOCAL ARRAY IMMEDIATELY
-    if (isEdit) {
-        const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
-        if (idx !== -1) {
-            allExpenseData[idx] = {
-                id: editId,
-                date: date,
-                year: year,
-                description: description,
-                category: category,
-                amount: amountNum,
-                month: monthName,
-                monthNum: monthNum
-            };
-        }
-        showToast('Expense updated successfully!', 'success');
-    } else {
-        const newRecord = {
-            id: recordId,
-            date: date,
-            year: year,
-            description: description,
-            category: category,
-            amount: amountNum,
-            month: monthName,
-            monthNum: monthNum,
-            timestamp: new Date().toISOString()
-        };
-        allExpenseData.push(newRecord);
-        showToast(`Expense ${formatINR(amountNum)} added!`, 'success');
-    }
-
-    // 2. AUTO-OPEN EXPENSE TABLE CONTAINER (SO RECORD IS IMMEDIATELY VISIBLE)
-    const tableContainer = document.getElementById('expenseTableContainer');
-    const toggleBtn = document.getElementById('toggleExpenseRecordsBtn');
-    if (tableContainer) {
-        tableContainer.style.display = 'block';
-        if (toggleBtn) toggleBtn.innerHTML = '🙈 Hide Records';
-    }
-
-    // 3. RESET FORM & REFRESH ALL TABLES / DASHBOARD
-    resetExpenseForm();
-    updateDashboard();
-    renderExpenseTable();
-    generateReport();
-
-    if (btn) {
-        btn.disabled = false;
-        btn.textContent = '➕ Add Expense';
-    }
-
-    // 4. SYNC TO GOOGLE SHEETS
     try {
-        setSyncStatus('syncing', 'Syncing...');
+        // 3. Call Google Sheet API
         const response = await callAPI({
-            action: isEdit ? 'updateExpense' : 'addExpense',
-            id: recordId,
-            date: date,
-            year: year,
+            action     : isEdit ? 'updateExpense' : 'addExpense',
+            id         : recordId,
+            date       : date,
+            year       : year,
             description: description,
-            category: category,
-            amount: amountNum,
-            month: monthName,
-            monthNum: monthNum
+            category   : category,
+            amount     : amountVal,
+            month      : monthName,
+            monthNum   : monthNum
         });
 
         if (response && response.status === 'success') {
+            // 4. Update Local State on Success
+            const finalId = response.id || recordId;
+
+            if (isEdit) {
+                const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
+                if (idx !== -1) {
+                    allExpenseData[idx] = {
+                        id: editId, date, year, description, category, amount: amountVal, month: monthName, monthNum
+                    };
+                }
+                showAlert('expenseSuccess', 'expenseSuccessMsg', 'Expense updated successfully!', 'success');
+                showToast('Expense updated!', 'success');
+            } else {
+                allExpenseData.push({
+                    id: finalId, date, year, description, category, amount: amountVal, month: monthName, monthNum,
+                    timestamp: new Date().toISOString()
+                });
+                showAlert('expenseSuccess', 'expenseSuccessMsg', `Expense of ${formatINR(amountVal)} added successfully!`, 'success');
+                showToast(`Expense ${formatINR(amountVal)} saved!`, 'success');
+            }
+
+            // 5. Auto-Open Table Container
+            const tableContainer = document.getElementById('expenseTableContainer');
+            const toggleBtn = document.getElementById('toggleExpenseRecordsBtn');
+            if (tableContainer) {
+                tableContainer.style.display = 'block';
+                if (toggleBtn) toggleBtn.innerHTML = '🙈 Hide Records';
+            }
+
+            // 6. Reset Form & Refresh UI
+            resetExpenseForm();
+            updateDashboard();
+            renderExpenseTable();
+            generateReport();
+
             setSyncStatus('ok', 'Connected');
+
         } else {
-            setSyncStatus('error', 'Sync Delay');
+            throw new Error(response ? response.message : 'Server returned invalid response');
         }
+
     } catch (err) {
-        console.warn('Google Sheet Sync Delay:', err);
-        setSyncStatus('error', 'Sync Delay');
+        setSyncStatus('error', 'Error');
+        console.error('Submit expense error:', err);
+        showAlert('expenseError', 'expenseErrorMsg', 'Error: ' + err.message, 'error');
+        showToast('Failed to save expense: ' + err.message, 'error');
+    } finally {
+        // 7. ALWAYS RESTORE BUTTON STATE (PREVENTS STUCK "SAVING...")
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = isEdit ? '💾 Update Expense' : '➕ Add Expense';
+        }
     }
 }
+
 
 
 
