@@ -1126,7 +1126,8 @@
         <!-- Add Expense Form -->
         <div class="card" style="margin-bottom:24px;">
             <div class="card-header">
-                <span class="card-title">➕ Add New Expense</span>
+                <span class="card-title" id="expenseFormTitle">➕ Add New Expense</span>
+
             </div>
             <div class="card-body">
                 <form id="expenseForm" onsubmit="submitExpense(event)">
@@ -1735,16 +1736,25 @@ function setSyncStatus(status) {
 function showAlert(alertId, msgId, message, type) {
     const alertEl = document.getElementById(alertId);
     const msgEl   = document.getElementById(msgId);
-    if (!alertEl || !msgEl) return;
+    
+    // Hide opposing alert
+    if (alertId === 'expenseSuccess') {
+        const errEl = document.getElementById('expenseError');
+        if (errEl) errEl.classList.remove('show');
+    } else if (alertId === 'expenseError') {
+        const succEl = document.getElementById('expenseSuccess');
+        if (succEl) succEl.classList.remove('show');
+    }
 
-    // Remove all type classes
-    alertEl.classList.remove('alert-success', 'alert-error', 'alert-warning');
-    alertEl.classList.add(`alert-${type}`, 'show');
-    msgEl.textContent = message;
+    if (alertEl && msgEl) {
+        msgEl.textContent = message;
+        alertEl.classList.remove('alert-success', 'alert-error', 'alert-warning');
+        alertEl.classList.add(`alert-${type}`, 'show');
 
-    setTimeout(() => {
-        alertEl.classList.remove('show');
-    }, 4000);
+        setTimeout(() => {
+            alertEl.classList.remove('show');
+        }, 4000);
+    }
 }
 
 // ============================================================
@@ -2206,26 +2216,47 @@ function editExpenseRecord(item) {
 // ============================================================
 // FIXED & BULLETPROOF SUBMIT EXPENSE (MIRRORS WORKING INCOME FLOW)
 // ============================================================
+function resetExpenseForm() {
+    const form = document.getElementById('expenseForm');
+    if (form) form.reset();
+
+    setDefaultDates();
+    safeSetValue('expenseEditId', '');
+
+    // Safely update UI titles & buttons
+    safeSetText('expenseFormTitle', '➕ Add New Expense');
+    safeSetText('addExpenseBtn', '➕ Add Expense');
+    safeSetDisplay('expenseResetBtn', 'inline-flex');
+    safeSetDisplay('cancelExpenseEditBtn', 'none');
+
+    // Auto-sync year dropdown with current year
+    const currentYear = new Date().getFullYear();
+    const yearEl = document.getElementById('expenseYear');
+    if (yearEl) {
+        for (let i = 0; i < yearEl.options.length; i++) {
+            if (parseInt(yearEl.options[i].value) === currentYear) {
+                yearEl.selectedIndex = i;
+                break;
+            }
+        }
+    }
+}
+
+// 100% FIXED SUBMIT EXPENSE
 async function submitExpense(event) {
     event.preventDefault();
 
     const btn = document.getElementById('addExpenseBtn');
 
-    // Safe field reader helper
-    const getFieldVal = (id) => {
-        const el = document.getElementById(id);
-        return el ? el.value.trim() : '';
-    };
-
-    const editId      = getFieldVal('expenseEditId');
+    const editId      = safeGetValue('expenseEditId');
     const isEdit      = editId !== '';
-    const date        = getFieldVal('expenseDate');
-    const yearRaw     = getFieldVal('expenseYear');
-    const category    = getFieldVal('expenseCategory');
-    const amountVal   = parseFloat(getFieldVal('expenseAmount'));
-    const description = getFieldVal('expenseDescription');
+    const date        = safeGetValue('expenseDate');
+    const yearRaw     = safeGetValue('expenseYear');
+    const category    = safeGetValue('expenseCategory');
+    const amountVal   = parseFloat(safeGetValue('expenseAmount'));
+    const description = safeGetValue('expenseDescription');
 
-    // 1. Strict Validation
+    // Validation
     if (!date || !yearRaw || !category || !description || isNaN(amountVal) || amountVal <= 0) {
         showAlert('expenseError', 'expenseErrorMsg',
             'Please fill all fields correctly. Amount must be greater than 0.', 'error');
@@ -2236,18 +2267,15 @@ async function submitExpense(event) {
     const monthNum = getMonthFromDate(date);
     const monthName = MONTHS[monthNum - 1] || '';
 
-    // 2. Change Button State to Saving
     if (btn) {
         btn.disabled = true;
         btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
     }
 
     setSyncStatus('syncing', 'Syncing...');
-
     const recordId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random() * 1000));
 
     try {
-        // 3. Call Google Sheet API
         const response = await callAPI({
             action     : isEdit ? 'updateExpense' : 'addExpense',
             id         : recordId,
@@ -2261,9 +2289,9 @@ async function submitExpense(event) {
         });
 
         if (response && response.status === 'success') {
-            // 4. Update Local State on Success
             const finalId = response.id || recordId;
 
+            // 1. Update Local Data Array
             if (isEdit) {
                 const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
                 if (idx !== -1) {
@@ -2282,7 +2310,10 @@ async function submitExpense(event) {
                 showToast(`Expense ${formatINR(amountVal)} saved!`, 'success');
             }
 
-            // 5. Auto-Open Table Container
+            // 2. Safely Reset Form
+            resetExpenseForm();
+
+            // 3. Auto-Open Table if hidden
             const tableContainer = document.getElementById('expenseTableContainer');
             const toggleBtn = document.getElementById('toggleExpenseRecordsBtn');
             if (tableContainer) {
@@ -2290,8 +2321,7 @@ async function submitExpense(event) {
                 if (toggleBtn) toggleBtn.innerHTML = '🙈 Hide Records';
             }
 
-            // 6. Reset Form & Refresh UI
-            resetExpenseForm();
+            // 4. Force Table & Dashboard Refresh
             updateDashboard();
             renderExpenseTable();
             generateReport();
@@ -2299,7 +2329,7 @@ async function submitExpense(event) {
             setSyncStatus('ok', 'Connected');
 
         } else {
-            throw new Error(response ? response.message : 'Server returned invalid response');
+            throw new Error(response ? response.message : 'Invalid response from server');
         }
 
     } catch (err) {
@@ -2308,7 +2338,6 @@ async function submitExpense(event) {
         showAlert('expenseError', 'expenseErrorMsg', 'Error: ' + err.message, 'error');
         showToast('Failed to save expense: ' + err.message, 'error');
     } finally {
-        // 7. ALWAYS RESTORE BUTTON STATE (PREVENTS STUCK "SAVING...")
         if (btn) {
             btn.disabled = false;
             btn.textContent = isEdit ? '💾 Update Expense' : '➕ Add Expense';
@@ -2339,28 +2368,33 @@ function cancelEditIncome() {
     showToast('Edit cancelled', 'warning');
 }
 
-
-
 function resetExpenseForm() {
-    document.getElementById('expenseForm').reset();
+    const form = document.getElementById('expenseForm');
+    if (form) form.reset();
+
     setDefaultDates();
-    document.getElementById('expenseEditId').value = '';
+    safeSetValue('expenseEditId', '');
 
-    // Switch UI back to "Add" mode
-    document.getElementById('expenseFormTitle').textContent = '➕ Add New Expense';
-    document.getElementById('addExpenseBtn').textContent    = '➕ Add Expense';
-    document.getElementById('cancelExpenseEditBtn').style.display = 'none';
+    // Safely update UI titles & buttons
+    safeSetText('expenseFormTitle', '➕ Add New Expense');
+    safeSetText('addExpenseBtn', '➕ Add Expense');
+    safeSetDisplay('expenseResetBtn', 'inline-flex');
+    safeSetDisplay('cancelExpenseEditBtn', 'none');
 
-    // Reset year to current year
+    // Auto-sync year dropdown with current year
     const currentYear = new Date().getFullYear();
     const yearEl = document.getElementById('expenseYear');
-    for (let i = 0; i < yearEl.options.length; i++) {
-        if (parseInt(yearEl.options[i].value) === currentYear) {
-            yearEl.selectedIndex = i;
-            break;
+    if (yearEl) {
+        for (let i = 0; i < yearEl.options.length; i++) {
+            if (parseInt(yearEl.options[i].value) === currentYear) {
+                yearEl.selectedIndex = i;
+                break;
+            }
         }
     }
 }
+
+
 
 // ============================================================
 // CANCEL EDIT — same as reset but explicit for clarity
