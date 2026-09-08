@@ -2841,6 +2841,9 @@ function generateReport() {
     if (overallBalance < 0) finalBalEl.classList.add('negative');
     // Auto-refresh category report if open
 generateCategoryReport();
+        // Refresh category year dropdown when report generates
+    populateCategoryYearDropdown();
+
 
 }
 
@@ -3059,6 +3062,8 @@ async function initApp() {
     try {
         // Populate year dropdowns first
         populateYearDropdowns();
+        populateCategoryDropdown();
+
 
         // Set today's date
         setDefaultDates();
