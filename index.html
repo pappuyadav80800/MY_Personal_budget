@@ -1357,10 +1357,10 @@
 </div>
 
 <!-- Filter Bar -->
+<!-- Filter Bar -->
 <div class="filter-bar" style="margin-bottom:20px;">
     <span class="filter-label">Type:</span>
     <select id="categoryReportType" onchange="populateCategoryDropdown(); generateCategoryReport();"
- 
         style="padding:8px 14px; border-radius:20px; border:1px solid rgba(255,255,255,0.3); font-weight:700; color:#0b2545; background:#fff; min-width:130px;">
         <option value="expense">💸 Expense</option>
         <option value="income">💰 Income</option>
@@ -1371,7 +1371,14 @@
         style="padding:8px 14px; border-radius:20px; border:1px solid rgba(255,255,255,0.3); font-weight:700; color:#0b2545; background:#fff; min-width:180px;">
         <option value="">-- Select Category --</option>
     </select>
+
+    <span class="filter-label">Year:</span>
+    <select id="categoryReportYear" onchange="generateCategoryReport()"
+        style="padding:8px 14px; border-radius:20px; border:1px solid rgba(255,255,255,0.3); font-weight:700; color:#0b2545; background:#fff; min-width:130px;">
+        <option value="all">All Years</option>
+    </select>
 </div>
+
 
 <!-- Category Report Card -->
 <div class="card" style="margin-bottom:24px;">
@@ -3158,6 +3165,36 @@ function editIncomeRecord(item) {
 // Category lists
 const INCOME_CATEGORIES  = ['Salary','Business','Freelance','Bonus','Interest','Rental','Investment','Other'];
 const EXPENSE_CATEGORIES = ['Food','Travel','Shopping','Rent','Bills','Medical','Education','Entertainment','EMI','Groceries','Fuel','Other'];
+    // Populate Year Dropdown from actual data
+function populateCategoryYearDropdown() {
+    const yearEl = document.getElementById('categoryReportYear');
+    if (!yearEl) return;
+
+    const currentVal = yearEl.value;
+
+    // Collect all years from both income and expense data
+    const yearSet = new Set();
+    allIncomeData.forEach(function(item)  { if (item.year) yearSet.add(parseInt(item.year)); });
+    allExpenseData.forEach(function(item) { if (item.year) yearSet.add(parseInt(item.year)); });
+
+    // Also add standard year range
+    for (let y = START_YEAR; y <= END_YEAR; y++) yearSet.add(y);
+
+    const sortedYears = [...yearSet].sort(function(a, b) { return a - b; });
+
+    yearEl.innerHTML = '<option value="all">All Years</option>';
+    sortedYears.forEach(function(yr) {
+        const opt       = document.createElement('option');
+        opt.value       = yr;
+        opt.textContent = yr;
+        yearEl.appendChild(opt);
+    });
+
+    // Restore previous selection
+    if (currentVal) yearEl.value = currentVal;
+    if (!yearEl.value) yearEl.value = 'all';
+}
+
 
 // Populate Category Dropdown based on Type
 function populateCategoryDropdown() {
@@ -3167,15 +3204,21 @@ function populateCategoryDropdown() {
 
     const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
+    // Save current selected value
+    const currentVal = selectEl.value;
+
     selectEl.innerHTML = '<option value="">-- Select Category --</option>';
     categories.forEach(function(cat) {
-        const opt = document.createElement('option');
+        const opt       = document.createElement('option');
         opt.value       = cat;
         opt.textContent = cat;
         selectEl.appendChild(opt);
     });
 
-    // Reset report table when type changes
+    // Restore selection if still valid
+    if (currentVal) selectEl.value = currentVal;
+
+    // Reset report table
     const tbody = document.getElementById('categoryReportBody');
     const tfoot = document.getElementById('categoryReportFoot');
     if (tbody) tbody.innerHTML = `
@@ -3183,37 +3226,40 @@ function populateCategoryDropdown() {
             <div class="empty-state">
                 <span class="empty-state-icon">📂</span>
                 <h3>Select a Category</h3>
-                <p>Choose category above to see year-wise report.</p>
+                <p>Choose category above to see report.</p>
             </div>
         </td></tr>`;
     if (tfoot) tfoot.innerHTML = '';
-
-    const titleEl = document.getElementById('categoryReportTitle');
-    if (titleEl) titleEl.textContent = '📂 Category Report';
 }
 
 // Generate Category Report
 function generateCategoryReport() {
-    const type     = document.getElementById('categoryReportType').value;
-    const category = document.getElementById('categoryReportSelect').value;
-    const tbody    = document.getElementById('categoryReportBody');
-    const tfoot    = document.getElementById('categoryReportFoot');
-    const titleEl  = document.getElementById('categoryReportTitle');
+    const typeEl     = document.getElementById('categoryReportType');
+    const selectEl   = document.getElementById('categoryReportSelect');
+    const yearEl     = document.getElementById('categoryReportYear');
+    const tbody      = document.getElementById('categoryReportBody');
+    const tfoot      = document.getElementById('categoryReportFoot');
+    const titleEl    = document.getElementById('categoryReportTitle');
 
-    // Populate dropdown first
-    populateCategoryDropdown();
+    if (!typeEl || !selectEl || !yearEl || !tbody) return;
 
-    // Restore selected category after repopulate
-    const selectEl = document.getElementById('categoryReportSelect');
-    if (selectEl && category) selectEl.value = category;
+    const type       = typeEl.value;
+    const category   = selectEl.value;
+    const yearFilter = yearEl.value;
+
+    // Populate year dropdown with latest data
+    populateCategoryYearDropdown();
+
+    // Restore year selection after repopulate
+    if (yearFilter) yearEl.value = yearFilter;
 
     if (!category) {
-        if (tbody) tbody.innerHTML = `
+        tbody.innerHTML = `
             <tr><td colspan="3">
                 <div class="empty-state">
                     <span class="empty-state-icon">📂</span>
                     <h3>Select a Category</h3>
-                    <p>Choose category above to see year-wise report.</p>
+                    <p>Choose type and category above to see report.</p>
                 </div>
             </td></tr>`;
         if (tfoot) tfoot.innerHTML = '';
@@ -3221,72 +3267,133 @@ function generateCategoryReport() {
         return;
     }
 
-    // Get data based on type
-    const sourceData = type === 'income' ? allIncomeData : allExpenseData;
+    // Get source data based on type
+    let sourceData = type === 'income' ? allIncomeData : allExpenseData;
 
-    // Filter by selected category
-    const filtered = sourceData.filter(function(item) {
+    // Filter by category
+    sourceData = sourceData.filter(function(item) {
         return item.category && item.category.toLowerCase() === category.toLowerCase();
     });
 
+    // Filter by year if not "all"
+    if (yearFilter !== 'all') {
+        sourceData = sourceData.filter(function(item) {
+            return parseInt(item.year) === parseInt(yearFilter);
+        });
+    }
+
     // Update Title
     const typeLabel = type === 'income' ? '💰 Income' : '💸 Expense';
-    if (titleEl) titleEl.textContent = `📂 ${typeLabel} — ${category} (Year-wise)`;
+    const yearLabel = yearFilter === 'all' ? 'All Years' : yearFilter;
+    if (titleEl) titleEl.textContent = `📂 ${typeLabel} — ${category} — ${yearLabel}`;
 
-    if (filtered.length === 0) {
-        if (tbody) tbody.innerHTML = `
+    if (sourceData.length === 0) {
+        tbody.innerHTML = `
             <tr><td colspan="3">
                 <div class="empty-state">
                     <span class="empty-state-icon">📂</span>
                     <h3>No Records Found</h3>
-                    <p>No ${type} records found for category "${category}".</p>
+                    <p>No ${type} records found for "${category}" in ${yearLabel}.</p>
                 </div>
             </td></tr>`;
         if (tfoot) tfoot.innerHTML = '';
         return;
     }
 
-    // Group by Year
-    const yearMap = {};
-    filtered.forEach(function(item) {
-        const yr = parseInt(item.year) || 0;
-        if (!yearMap[yr]) {
-            yearMap[yr] = { total: 0, count: 0 };
-        }
-        yearMap[yr].total += parseFloat(item.amount) || 0;
-        yearMap[yr].count += 1;
-    });
+    const isIncome = type === 'income';
 
-    // Sort years ascending
-    const sortedYears = Object.keys(yearMap).sort(function(a, b) { return a - b; });
+    // ---- If "All Years" selected: Group by Year ----
+    if (yearFilter === 'all') {
+        const yearMap = {};
+        sourceData.forEach(function(item) {
+            const yr = parseInt(item.year) || 0;
+            if (!yearMap[yr]) yearMap[yr] = { total: 0, count: 0 };
+            yearMap[yr].total += parseFloat(item.amount) || 0;
+            yearMap[yr].count += 1;
+        });
 
-    let rows        = '';
-    let grandTotal  = 0;
-    let grandCount  = 0;
-    const isIncome  = type === 'income';
+        const sortedYears = Object.keys(yearMap).sort(function(a, b) { return a - b; });
 
-    sortedYears.forEach(function(yr) {
-        const data      = yearMap[yr];
-        grandTotal     += data.total;
-        grandCount     += data.count;
-        const amtClass  = isIncome ? 'amount-positive' : 'amount-negative';
+        let rows = '';
+        let grandTotal = 0;
+        let grandCount = 0;
 
-        rows += '<tr>' +
-            '<td style="font-weight:700; color:#0b2545;">' + yr + '</td>' +
-            '<td class="' + amtClass + '">' + formatINR(data.total) + '</td>' +
-            '<td style="color:#64748b; font-weight:600;">' + data.count + ' record' + (data.count > 1 ? 's' : '') + '</td>' +
+        sortedYears.forEach(function(yr) {
+            const d        = yearMap[yr];
+            grandTotal    += d.total;
+            grandCount    += d.count;
+            const amtClass = isIncome ? 'amount-positive' : 'amount-negative';
+
+            rows += '<tr>' +
+                '<td style="font-weight:700; color:#0b2545;">' + yr + '</td>' +
+                '<td class="' + amtClass + '">' + formatINR(d.total) + '</td>' +
+                '<td style="color:#64748b; font-weight:600;">' + d.count + ' record' + (d.count > 1 ? 's' : '') + '</td>' +
+            '</tr>';
+        });
+
+        tbody.innerHTML = rows;
+
+        const footAmtClass = isIncome ? 'amount-positive' : 'amount-negative';
+        if (tfoot) tfoot.innerHTML = '<tr class="tfoot-row">' +
+            '<td style="font-weight:800; color:#0b2545 !important;">Grand Total</td>' +
+            '<td class="' + footAmtClass + '">' + formatINR(grandTotal) + '</td>' +
+            '<td style="font-weight:700;">' + grandCount + ' record' + (grandCount > 1 ? 's' : '') + '</td>' +
         '</tr>';
-    });
 
-    if (tbody) tbody.innerHTML = rows;
+    } else {
+        // ---- Specific Year selected: Group by Month ----
+        const monthMap = {};
+        MONTHS.forEach(function(m) { monthMap[m] = { total: 0, count: 0 }; });
 
-    // Footer Grand Total
-    const footAmtClass = isIncome ? 'amount-positive' : 'amount-negative';
-    if (tfoot) tfoot.innerHTML = '<tr class="tfoot-row">' +
-        '<td style="font-weight:800;">Grand Total</td>' +
-        '<td class="' + footAmtClass + '">' + formatINR(grandTotal) + '</td>' +
-        '<td style="font-weight:700;">' + grandCount + ' record' + (grandCount > 1 ? 's' : '') + '</td>' +
-    '</tr>';
+        sourceData.forEach(function(item) {
+            const mNum  = parseInt(item.monthNum) || getMonthFromDate(item.date);
+            const mName = MONTHS[mNum - 1];
+            if (mName) {
+                monthMap[mName].total += parseFloat(item.amount) || 0;
+                monthMap[mName].count += 1;
+            }
+        });
+
+        let rows = '';
+        let grandTotal = 0;
+        let grandCount = 0;
+
+        MONTHS.forEach(function(monthName) {
+            const d = monthMap[monthName];
+            if (d.count === 0) return; // Skip empty months
+            grandTotal += d.total;
+            grandCount += d.count;
+            const amtClass = isIncome ? 'amount-positive' : 'amount-negative';
+
+            rows += '<tr>' +
+                '<td style="font-weight:700; color:#0b2545;">' + monthName + ' ' + yearFilter + '</td>' +
+                '<td class="' + amtClass + '">' + formatINR(d.total) + '</td>' +
+                '<td style="color:#64748b; font-weight:600;">' + d.count + ' record' + (d.count > 1 ? 's' : '') + '</td>' +
+            '</tr>';
+        });
+
+        if (grandCount === 0) {
+            tbody.innerHTML = `
+                <tr><td colspan="3">
+                    <div class="empty-state">
+                        <span class="empty-state-icon">📂</span>
+                        <h3>No Records Found</h3>
+                        <p>No records for "${category}" in ${yearFilter}.</p>
+                    </div>
+                </td></tr>`;
+            if (tfoot) tfoot.innerHTML = '';
+            return;
+        }
+
+        tbody.innerHTML = rows;
+
+        const footAmtClass = isIncome ? 'amount-positive' : 'amount-negative';
+        if (tfoot) tfoot.innerHTML = '<tr class="tfoot-row">' +
+            '<td style="font-weight:800; color:#0b2545 !important;">Year Total — ' + yearFilter + '</td>' +
+            '<td class="' + footAmtClass + '">' + formatINR(grandTotal) + '</td>' +
+            '<td style="font-weight:700;">' + grandCount + ' record' + (grandCount > 1 ? 's' : '') + '</td>' +
+        '</tr>';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
