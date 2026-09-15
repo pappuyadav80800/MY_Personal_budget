@@ -887,9 +887,20 @@
             </select>
             
         </div>
+        <!-- Summary Toggle Button -->
+<div style="margin-bottom:12px;">
+    <button id="toggleDashSummaryBtn"
+        onclick="toggleDashSummary()"
+        style="background:#133863; color:#fbbf24; border:none;
+               padding:8px 20px; border-radius:20px; font-size:13px;
+               font-weight:700; cursor:pointer;">
+        👁️ Show Summary
+    </button>
+</div>
+
 
         <!-- Summary Cards -->
-        <div class="summary-grid">
+        <div class="summary-grid" id="dashSummaryGrid" style="display:none;">
             <div class="summary-card income">
                 <div class="summary-card-icon">💰</div>
                 <div class="summary-card-label">Total Income</div>
@@ -1316,23 +1327,25 @@
         </div>
 
         <!-- Year Summary Box -->
-        <div class="year-summary-box" id="yearSummaryBox">
-            <h3 id="yearSummaryTitle">📊 All Years Summary</h3>
-            <div class="year-summary-grid">
-                <div class="year-summary-item">
-                    <div class="year-summary-item-label">💰 Total Income</div>
-                    <div class="year-summary-item-value" id="reportYearIncome">₹0</div>
-                </div>
-                <div class="year-summary-item">
-                    <div class="year-summary-item-label">💸 Total Expense</div>
-                    <div class="year-summary-item-value" id="reportYearExpense">₹0</div>
-                </div>
-                <div class="year-summary-item">
-                    <div class="year-summary-item-label">💵 Pending Balance</div>
-                    <div class="year-summary-item-value" id="reportYearBalance">₹0</div>
-                </div>
-            </div>
-        </div>
+       <div class="year-summary-box" id="yearSummaryBox">
+    <div style="display:flex; align-items:center;
+                justify-content:space-between; margin-bottom:16px;">
+        <h3 id="yearSummaryTitle" style="margin-bottom:0;">
+            📊 All Years Summary
+        </h3>
+        <button id="toggleReportSummaryBtn"
+            onclick="toggleReportSummary()"
+            style="background:rgba(255,255,255,0.15);
+                   color:#fbbf24; border:1px solid rgba(255,255,255,0.3);
+                   padding:6px 16px; border-radius:20px; font-size:12px;
+                   font-weight:700; cursor:pointer;">
+            👁️ Show
+        </button>
+    </div>
+           </div>
+    <div class="year-summary-grid" id="yearSummaryGrid" style="display:none;">
+        
+
 
         <!-- Monthly Report Table -->
         <!-- Monthly Report Card with Show/Hide Toggle -->
@@ -2349,6 +2362,13 @@ function updateDashboard() {
     safeText('dashTotalIncome',  formatINR(totalIncome));
     safeText('dashTotalExpense', formatINR(totalExpense));
     safeText('dashFinalBalance', formatINR(balance));
+    // ✅ Agar summary hidden hai to values calculate hoti rahe
+// but grid hidden hi rahe — button state preserve karo
+const dashGrid = document.getElementById('dashSummaryGrid');
+if (dashGrid && dashGrid.style.display === 'none') {
+    // Values update ho gayi — grid hidden hi rahega
+}
+
     safeText('dashIncomeCount',
         `${incomeData.length} ${incomeData.length === 1 ? 'entry' : 'entries'}`);
     safeText('dashExpenseCount',
@@ -3257,6 +3277,40 @@ function toggleRecords(type) {
         }
     }
 }
+    // ============================================================
+// TOGGLE DASHBOARD SUMMARY
+// ============================================================
+function toggleDashSummary() {
+    const grid = document.getElementById('dashSummaryGrid');
+    const btn  = document.getElementById('toggleDashSummaryBtn');
+    if (!grid || !btn) return;
+
+    if (grid.style.display === 'none') {
+        grid.style.display = 'grid';
+        btn.innerHTML      = '🙈 Hide Summary';
+    } else {
+        grid.style.display = 'none';
+        btn.innerHTML      = '👁️ Show Summary';
+    }
+}
+
+// ============================================================
+// TOGGLE REPORT YEAR SUMMARY
+// ============================================================
+function toggleReportSummary() {
+    const grid = document.getElementById('yearSummaryGrid');
+    const btn  = document.getElementById('toggleReportSummaryBtn');
+    if (!grid || !btn) return;
+
+    if (grid.style.display === 'none') {
+        grid.style.display = 'grid';
+        btn.innerHTML      = '🙈 Hide';
+    } else {
+        grid.style.display = 'none';
+        btn.innerHTML      = '👁️ Show';
+    }
+}
+
 
 // ============================================================
 // INIT APP
