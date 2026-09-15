@@ -841,20 +841,7 @@
         <div class="sync-dot" id="syncDot"></div>
         <span id="syncStatus">Connected</span>
     </div>
-    <button id="commonRefreshBtn" onclick="refreshAllData()"
-        style="background:rgba(255,255,255,0.15);
-               border:1px solid rgba(255,255,255,0.3);
-               color:#ffffff;
-               padding:6px 14px;
-               border-radius:20px;
-               font-size:12px;
-               font-weight:700;
-               cursor:pointer;
-               display:flex;
-               align-items:center;
-               gap:6px;">
-        🔄 Refresh
-    </button>
+   
     <button class="btn-logout" onclick="handleLogout()">
         🚪 Logout
     </button>
@@ -1848,57 +1835,46 @@ async function fetchAllData(forceRefresh = false) {
     }
 }
 
+// ============================================================
+// SILENT AUTO REFRESH — No UI block, no popup, no spinner
+// ============================================================
 async function refreshAllData() {
-    const btn = document.getElementById('commonRefreshBtn');
-
-    // Button animation
-    if (btn) {
-        btn.disabled      = true;
-        btn.innerHTML     = '⏳ Loading...';
-        btn.style.opacity = '0.7';
-    }
-
     try {
-        // Force fresh fetch from Google Sheet
-        await fetchAllData(true);
+        const response = await callAPI({ action: 'getAllData' });
 
-        // Update only current active tab — fast & targeted
-        const activeTab = document.querySelector('.tab-content.active');
-        const tabId     = activeTab ? activeTab.id : '';
+        if (response && response.status === 'success') {
+            allIncomeData  = response.income  || [];
+            allExpenseData = response.expense || [];
+            dataLoaded     = true;
+            lastFetchTime  = Date.now();
 
-        syncYearFiltersFromData();
+            // Silently update active tab only
+            const activeTab = document.querySelector('.tab-content.active');
+            const tabId     = activeTab ? activeTab.id : '';
 
-        if (tabId === 'tab-dashboard') {
-            updateDashboard();
-        } else if (tabId === 'tab-income') {
-            renderIncomeTable();
-            updateDashboard();
-        } else if (tabId === 'tab-expense') {
-            renderExpenseTable();
-            updateDashboard();
-        } else if (tabId === 'tab-reports') {
-            generateReport();
-            updateDashboard();
-        } else {
-            // Fallback — update all
-            updateDashboard();
-            renderIncomeTable();
-            renderExpenseTable();
-            generateReport();
+            syncYearFiltersFromData();
+
+            if (tabId === 'tab-dashboard') {
+                updateDashboard();
+            } else if (tabId === 'tab-income') {
+                renderIncomeTable();
+                updateDashboard();
+            } else if (tabId === 'tab-expense') {
+                renderExpenseTable();
+                updateDashboard();
+            } else if (tabId === 'tab-reports') {
+                generateReport();
+                updateDashboard();
+            } else {
+                updateDashboard();
+            }
         }
-
-        showToast('Data refreshed!', 'success');
-
     } catch (err) {
-        showToast('Refresh failed: ' + err.message, 'error');
-    } finally {
-        if (btn) {
-            btn.disabled      = false;
-            btn.innerHTML     = '🔄 Refresh';
-            btn.style.opacity = '1';
-        }
+        // Silent fail — no popup, no toast
+        console.warn('Auto-sync skipped:', err.message);
     }
 }
+
     // ============================================================
 // SUBMIT INCOME — Optimistic UI + Background Sync
 // ============================================================
@@ -3073,7 +3049,6 @@ async function initApp() {
         syncYearFromDate('incomeDate',  'incomeYear');
         syncYearFromDate('expenseDate', 'expenseYear');
 
-        // Fetch once on login — cached for 5 minutes
         const success = await fetchAllData();
 
         if (success) {
@@ -3091,7 +3066,16 @@ async function initApp() {
     } finally {
         setLoading(false);
     }
+
+    // ✅ Auto background sync — every 30 seconds, silent
+    setInterval(async function() {
+        // Only sync if no pending queue actions
+        if (syncQueue.length === 0) {
+            await refreshAllData();
+        }
+    }, 30000);
 }
+
 
 // ============================================================
 // DOM READY
