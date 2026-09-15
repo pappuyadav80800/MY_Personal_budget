@@ -1326,24 +1326,74 @@
         <!-- Section Divider -->
         <hr class="section-divider">
 
-        <!-- Final Overall Summary -->
-        <div class="final-summary-box">
-            <h3>🏆 Final Overall Summary — All Years Combined</h3>
-            <div class="final-summary-grid">
-                <div class="final-summary-item">
-                    <div class="final-summary-item-label">💰 Overall Total Income</div>
-                    <div class="final-summary-item-value" id="finalOverallIncome">₹0</div>
-                </div>
-                <div class="final-summary-item">
-                    <div class="final-summary-item-label">💸 Overall Total Expense</div>
-                    <div class="final-summary-item-value" id="finalOverallExpense">₹0</div>
-                </div>
-                <div class="final-summary-item">
-                    <div class="final-summary-item-label">💵 Final Balance</div>
-                    <div class="final-summary-item-value" id="finalOverallBalance">₹0</div>
-                </div>
-            </div>
+      <!-- Month + Year Wise Filter -->
+<div class="final-summary-box" style="background:#ffffff !important;
+     border:1px solid #cbd5e1 !important; border-top:4px solid #fbbf24 !important;">
+
+    <h3 style="color:#0b2545 !important; margin-bottom:20px;">
+        📅 Select Year Wise Filter
+    </h3>
+
+    <!-- Filter Row -->
+    <div style="display:flex; align-items:center; gap:12px;
+                flex-wrap:wrap; margin-bottom:24px;">
+
+        <span style="font-size:12px; font-weight:800;
+                     color:#0b2545; text-transform:uppercase;">
+            Month:
+        </span>
+        <select id="monthYearFilterMonth"
+            onchange="generateMonthYearReport()"
+            style="padding:8px 14px; border-radius:20px;
+                   border:1px solid #cbd5e1; font-weight:700;
+                   color:#0b2545; background:#fff; min-width:140px;">
+            <option value="all">All Months</option>
+            <option value="1">January</option>
+            <option value="2">February</option>
+            <option value="3">March</option>
+            <option value="4">April</option>
+            <option value="5">May</option>
+            <option value="6">June</option>
+            <option value="7">July</option>
+            <option value="8">August</option>
+            <option value="9">September</option>
+            <option value="10">October</option>
+            <option value="11">November</option>
+            <option value="12">December</option>
+        </select>
+
+        <span style="font-size:12px; font-weight:800;
+                     color:#0b2545; text-transform:uppercase;">
+            Year:
+        </span>
+        <select id="monthYearFilterYear"
+            onchange="generateMonthYearReport()"
+            style="padding:8px 14px; border-radius:20px;
+                   border:1px solid #cbd5e1; font-weight:700;
+                   color:#0b2545; background:#fff; min-width:130px;">
+            <option value="all">All Years</option>
+        </select>
+
+    </div>
+
+    <!-- Result Cards -->
+    <div class="final-summary-grid">
+        <div class="final-summary-item">
+            <div class="final-summary-item-label">💰 Total Income</div>
+            <div class="final-summary-item-value" id="myfIncome">₹0</div>
         </div>
+        <div class="final-summary-item">
+            <div class="final-summary-item-label">💸 Total Expense</div>
+            <div class="final-summary-item-value" id="myfExpense">₹0</div>
+        </div>
+        <div class="final-summary-item">
+            <div class="final-summary-item-label">💵 Balance</div>
+            <div class="final-summary-item-value" id="myfBalance">₹0</div>
+        </div>
+    </div>
+
+</div>
+
 
     </div>
     <!-- ===== CATEGORY-WISE YEAR-WISE REPORT ===== -->
@@ -2592,21 +2642,7 @@ function generateReport() {
         yearExpenseData = allExpenseData.filter(i => parseInt(i.year) === yr);
     }
 
-    const yearTotalIncome  = yearIncomeData.reduce((s, i)  => s + (parseFloat(i.amount) || 0), 0);
-    const yearTotalExpense = yearExpenseData.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
-    const yearBalance      = yearTotalIncome - yearTotalExpense;
-
-    safeText('yearSummaryTitle',
-        selectedYear === 'all' ? '📊 All Years Summary' : `📊 ${selectedYear} Summary`);
-    safeText('reportYearIncome',  formatINR(yearTotalIncome));
-    safeText('reportYearExpense', formatINR(yearTotalExpense));
-
-    const balEl = document.getElementById('reportYearBalance');
-    if (balEl) {
-        balEl.textContent = formatINR(yearBalance);
-        balEl.className   = 'year-summary-item-value';
-        if (yearBalance < 0) balEl.classList.add('negative');
-    }
+    
 
     safeText('monthlyReportTitle',
         selectedYear === 'all'
@@ -2632,6 +2668,9 @@ function generateReport() {
 
     populateCategoryYearDropdown();
     generateCategoryReport();
+    populateMonthYearFilterDropdown();
+generateMonthYearReport();
+
 }
 
 // ============================================================
@@ -2994,6 +3033,91 @@ function generateCategoryReport() {
                     ${grandCount} record${grandCount > 1 ? 's' : ''}
                 </td>
             </tr>`;
+    }
+}
+// ============================================================
+// POPULATE MONTH-YEAR FILTER YEAR DROPDOWN
+// ============================================================
+function populateMonthYearFilterDropdown() {
+    const yearEl = document.getElementById('monthYearFilterYear');
+    if (!yearEl) return;
+
+    const currentVal = yearEl.value;
+
+    const yearSet = new Set();
+    allIncomeData.forEach(i  => { if (i.year) yearSet.add(parseInt(i.year)); });
+    allExpenseData.forEach(i => { if (i.year) yearSet.add(parseInt(i.year)); });
+    for (let y = START_YEAR; y <= END_YEAR; y++) yearSet.add(y);
+
+    const sortedYears = [...yearSet].sort((a, b) => a - b);
+
+    yearEl.innerHTML = '<option value="all">All Years</option>';
+    sortedYears.forEach(yr => {
+        const opt       = document.createElement('option');
+        opt.value       = yr;
+        opt.textContent = yr;
+        yearEl.appendChild(opt);
+    });
+
+    if (currentVal) yearEl.value = currentVal;
+    if (!yearEl.value) yearEl.value = 'all';
+}
+
+// ============================================================
+// GENERATE MONTH + YEAR WISE REPORT
+// ============================================================
+function generateMonthYearReport() {
+    const monthEl = document.getElementById('monthYearFilterMonth');
+    const yearEl  = document.getElementById('monthYearFilterYear');
+
+    if (!monthEl || !yearEl) return;
+
+    const selectedMonth = monthEl.value;
+    const selectedYear  = yearEl.value;
+
+    let incomeData  = [...allIncomeData];
+    let expenseData = [...allExpenseData];
+
+    // Filter by Year
+    if (selectedYear !== 'all') {
+        const yr    = parseInt(selectedYear);
+        incomeData  = incomeData.filter(i  => parseInt(i.year) === yr);
+        expenseData = expenseData.filter(i => parseInt(i.year) === yr);
+    }
+
+    // Filter by Month
+    if (selectedMonth !== 'all') {
+        const mn    = parseInt(selectedMonth);
+        incomeData  = incomeData.filter(i =>
+            parseInt(i.monthNum) === mn ||
+            (i.month && i.month.toLowerCase() ===
+             MONTHS[mn - 1].toLowerCase())
+        );
+        expenseData = expenseData.filter(i =>
+            parseInt(i.monthNum) === mn ||
+            (i.month && i.month.toLowerCase() ===
+             MONTHS[mn - 1].toLowerCase())
+        );
+    }
+
+    // Calculate totals
+    const totalIncome  = incomeData.reduce(
+        (s, i) => s + (parseFloat(i.amount) || 0), 0
+    );
+    const totalExpense = expenseData.reduce(
+        (s, i) => s + (parseFloat(i.amount) || 0), 0
+    );
+    const balance      = totalIncome - totalExpense;
+
+    // Update UI
+    safeText('myfIncome',  formatINR(totalIncome));
+    safeText('myfExpense', formatINR(totalExpense));
+
+    const balEl = document.getElementById('myfBalance');
+    if (balEl) {
+        balEl.textContent = formatINR(balance);
+        balEl.className   = 'final-summary-item-value';
+        if (balance < 0) balEl.classList.add('negative');
     }
 }
 
