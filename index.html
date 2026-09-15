@@ -836,15 +836,30 @@
                 <span>Personal Finance Tracker</span>
             </div>
         </div>
-        <div style="display:flex; align-items:center;">
-            <div class="header-sync">
-                <div class="sync-dot" id="syncDot"></div>
-                <span id="syncStatus">Connected</span>
-            </div>
-            <button class="btn-logout" onclick="handleLogout()">
-                🚪 Logout
-            </button>
-        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+    <div class="header-sync">
+        <div class="sync-dot" id="syncDot"></div>
+        <span id="syncStatus">Connected</span>
+    </div>
+    <button id="commonRefreshBtn" onclick="refreshAllData()"
+        style="background:rgba(255,255,255,0.15);
+               border:1px solid rgba(255,255,255,0.3);
+               color:#ffffff;
+               padding:6px 14px;
+               border-radius:20px;
+               font-size:12px;
+               font-weight:700;
+               cursor:pointer;
+               display:flex;
+               align-items:center;
+               gap:6px;">
+        🔄 Refresh
+    </button>
+    <button class="btn-logout" onclick="handleLogout()">
+        🚪 Logout
+    </button>
+</div>
+
     </div>
 </header>
 
@@ -883,9 +898,7 @@
             <select class="filter-select" id="dashboardYearFilter" onchange="updateDashboard()">
                 <option value="all">All Years</option>
             </select>
-            <button class="btn-refresh" onclick="refreshAllData()" id="dashRefreshBtn">
-                <span class="refresh-icon">🔄</span> Refresh
-            </button>
+            
         </div>
 
         <!-- Summary Cards -->
@@ -917,9 +930,7 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">💰 Recent Income</span>
-                    <button class="btn-refresh btn-sm" onclick="refreshAllData()">
-                        <span class="refresh-icon">🔄</span>
-                    </button>
+                    
                 </div>
                 <div class="card-body" style="padding:0;">
                     <div class="table-wrapper">
@@ -950,9 +961,7 @@
             <div class="card">
                 <div class="card-header">
                     <span class="card-title">💸 Recent Expenses</span>
-                    <button class="btn-refresh btn-sm" onclick="refreshAllData()">
-                        <span class="refresh-icon">🔄</span>
-                    </button>
+                   
                 </div>
                 <div class="card-body" style="padding:0;">
                     <div class="table-wrapper">
@@ -1082,9 +1091,7 @@
             <select class="filter-select" id="incomeListYearFilter" onchange="renderIncomeTable()" style="min-width:110px;">
                 <option value="all">All Years</option>
             </select>
-            <button class="btn-refresh" onclick="refreshAllData()">
-                <span class="refresh-icon">🔄</span>
-            </button>
+            
         </div>
     </div>
     <!-- By default hidden -->
@@ -1219,9 +1226,7 @@
             <select class="filter-select" id="expenseListYearFilter" onchange="renderExpenseTable()" style="min-width:110px;">
                 <option value="all">All Years</option>
             </select>
-            <button class="btn-refresh" onclick="refreshAllData()">
-                <span class="refresh-icon">🔄</span>
-            </button>
+            
         </div>
     </div>
     <!-- By default hidden -->
@@ -1270,9 +1275,7 @@
             <select class="filter-select" id="reportYearFilter" onchange="generateReport()">
                 <option value="all">All Years</option>
             </select>
-            <button class="btn-refresh" onclick="refreshAllData()" id="reportRefreshBtn">
-                <span class="refresh-icon">🔄</span> Refresh
-            </button>
+           
         </div>
 
         <!-- Year Summary Box -->
@@ -1845,20 +1848,42 @@ async function fetchAllData(forceRefresh = false) {
     }
 }
 
-async function refreshAllData() {
-    const btns = document.querySelectorAll('.btn-refresh');
-    btns.forEach(b => b.classList.add('spinning'));
+Sub Category 4
 
-    await fetchAllData(true);
-    syncYearFiltersFromData();
-    updateDashboard();
-    renderIncomeTable();
-    renderExpenseTable();
-    generateReport();
 
-    btns.forEach(b => b.classList.remove('spinning'));
-    showToast('Data refreshed!', 'success');
-}
+
+
+
+
+
+
+
+
+
+
+
+
+Head Dr Side
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     // ============================================================
 // SUBMIT INCOME — Optimistic UI + Background Sync
 // ============================================================
