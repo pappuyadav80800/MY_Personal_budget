@@ -1422,35 +1422,35 @@
 
 <!-- ==================== JAVASCRIPT ==================== -->
 <script>
-    // ============================================================
-// BACKGROUND SYNC QUEUE & RETRY SYSTEM (FAST & RELIABLE)
 // ============================================================
-let syncQueue = [];
+// SYNC QUEUE & RETRY SYSTEM
+// ============================================================
+let syncQueue         = [];
 let isProcessingQueue = false;
 
-// Custom API Call with 20s Timeout
 function callAPI(params) {
     return new Promise((resolve, reject) => {
-        const callbackName = 'callback_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const callbackName = 'cb_' + Date.now() + '_' +
+                             Math.random().toString(36).slice(2);
         const url = new URL(APPS_SCRIPT_URL);
 
         Object.entries(params).forEach(([k, v]) => {
             if (v !== undefined && v !== null) {
-                url.searchParams.set(k, v);
+                url.searchParams.set(k, String(v));
             }
         });
         url.searchParams.set('callback', callbackName);
 
-        const script = document.createElement('script');
-        let settled = false;
+        const script  = document.createElement('script');
+        let   settled = false;
 
         const timeout = setTimeout(() => {
             if (!settled) {
                 settled = true;
                 cleanup();
-                reject(new Error('Network response delayed. Queued for auto-retry.'));
+                reject(new Error('Request timeout — retrying in background'));
             }
-        }, 20000); // 20s generous timeout for Google Apps Script
+        }, 25000);
 
         window[callbackName] = function(data) {
             if (!settled) {
@@ -1470,7 +1470,7 @@ function callAPI(params) {
             if (!settled) {
                 settled = true;
                 cleanup();
-                reject(new Error('Server connectivity issue. Retrying in background...'));
+                reject(new Error('Network error'));
             }
         };
 
@@ -1479,26 +1479,27 @@ function callAPI(params) {
     });
 }
 
-// Background Sync Queue Processor
+// ============================================================
+// SYNC QUEUE PROCESSOR
+// ============================================================
 async function processSyncQueue() {
     if (isProcessingQueue || syncQueue.length === 0) {
-        if (syncQueue.length === 0) setSyncStatus('ok');
+        if (syncQueue.length === 0) setSyncStatus('ok', 'Connected');
         return;
     }
 
     isProcessingQueue = true;
-    const currentTask = syncQueue[0];
+    const task = syncQueue[0];
 
     setSyncStatus('syncing', `Syncing (${syncQueue.length})...`);
 
     try {
-        const response = await callAPI(currentTask.params);
+        const response = await callAPI(task.params);
 
         if (response && response.status === 'success') {
-            // Task successful -> Remove from queue
             syncQueue.shift();
-            currentTask.resolve(response);
-            
+            task.resolve(response);
+
             if (syncQueue.length > 0) {
                 setSyncStatus('syncing', `Syncing (${syncQueue.length})...`);
             } else {
@@ -1507,24 +1508,22 @@ async function processSyncQueue() {
         } else {
             throw new Error(response ? response.message : 'Invalid response');
         }
-    } catch (err) {
-        console.warn(`Sync queue task attempt ${currentTask.retries + 1} failed:`, err.message);
-        currentTask.retries++;
 
-        if (currentTask.retries >= 4) {
-            // After 4 retries, drop task or notify user cleanly
+    } catch (err) {
+        task.retries++;
+        console.warn(`Sync attempt ${task.retries} failed:`, err.message);
+
+        if (task.retries >= 4) {
             syncQueue.shift();
-            currentTask.reject(err);
-            showToast('Sync delay: Google Sheet sync took longer than expected.', 'warning');
+            task.reject(err);
             setSyncStatus('error', 'Sync Delay');
+            showToast('Sync delayed — will retry on next action', 'warning');
         } else {
-            // Exponential backoff delay (2s, 4s, 8s)
-            setSyncStatus('syncing', `Retrying (${currentTask.retries}/3)...`);
-            await new Promise(r => setTimeout(r, currentTask.retries * 2000));
+            setSyncStatus('syncing', `Retrying (${task.retries}/3)...`);
+            await new Promise(r => setTimeout(r, task.retries * 2000));
         }
     } finally {
         isProcessingQueue = false;
-        // Process next item in queue
         if (syncQueue.length > 0) {
             setTimeout(processSyncQueue, 300);
         } else {
@@ -1533,88 +1532,44 @@ async function processSyncQueue() {
     }
 }
 
-// Add action to Sync Queue
 function queueSyncAction(params) {
     return new Promise((resolve, reject) => {
-        syncQueue.push({
-            params: params,
-            retries: 0,
-            resolve: resolve,
-            reject: reject
-        });
+        syncQueue.push({ params, retries: 0, resolve, reject });
         processSyncQueue();
     });
 }
 
-// Updated Sync Status UI Handler
-function setSyncStatus(status, textMessage) {
-    const dot   = document.getElementById('syncDot');
-    const label = document.getElementById('syncStatus');
-    if (!dot || !label) return;
-
-    dot.className = 'sync-dot';
-
-    if (status === 'syncing') {
-        dot.classList.add('syncing');
-        label.textContent = textMessage || 'Syncing...';
-    } else if (status === 'error') {
-        dot.classList.add('error');
-        label.textContent = textMessage || 'Sync Issue';
-    } else {
-        label.textContent = textMessage || 'Connected';
-    }
-}
-
-    // ============================================================
-// SAFE DOM HELPERS (Add at the very top of <script>)
+// ============================================================
+// SAFE DOM HELPERS
 // ============================================================
 function safeText(id, text) {
     const el = document.getElementById(id);
     if (el) el.textContent = text;
 }
-
 function safeVal(id, val) {
     const el = document.getElementById(id);
     if (el) el.value = (val !== null && val !== undefined) ? val : '';
 }
-
 function safeDisp(id, style) {
     const el = document.getElementById(id);
     if (el) el.style.display = style;
 }
-
-// ============================================================
-// LOGIN / AUTHENTICATION (Client-Side, sessionStorage based)
-// ============================================================
-     // Safe DOM manipulation helpers to prevent 'Cannot set properties of null' errors
-function safeSetText(id, text) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = text;
-}
-
-function safeSetValue(id, val) {
-    const el = document.getElementById(id);
-    if (el) el.value = (val !== null && val !== undefined) ? val : '';
-}
-
-function safeSetDisplay(id, displayStyle) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = displayStyle;
-}
-
 function safeGetValue(id) {
     const el = document.getElementById(id);
     return el ? el.value.trim() : '';
 }
-const LOGIN_CREDENTIALS = {
-    username: 'admin',
-    password: 'admin123'
-};
+const safeSetText    = safeText;
+const safeSetValue   = safeVal;
+const safeSetDisplay = safeDisp;
+
+// ============================================================
+// LOGIN / AUTH
+// ============================================================
+const LOGIN_CREDENTIALS = { username: 'admin', password: 'admin123' };
 
 function checkLoginStatus() {
     const isLoggedIn = sessionStorage.getItem('bm_logged_in') === 'true';
-    const overlay = document.getElementById('loginOverlay');
-
+    const overlay    = document.getElementById('loginOverlay');
     if (isLoggedIn) {
         overlay.classList.add('hidden');
         return true;
@@ -1626,22 +1581,17 @@ function checkLoginStatus() {
 
 function handleLogin(event) {
     event.preventDefault();
-
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value.trim();
     const errorBox = document.getElementById('loginError');
 
     if (username === LOGIN_CREDENTIALS.username &&
         password === LOGIN_CREDENTIALS.password) {
-
         sessionStorage.setItem('bm_logged_in', 'true');
         errorBox.classList.remove('show');
         document.getElementById('loginOverlay').classList.add('hidden');
         document.getElementById('loginForm').reset();
-
-        // Start loading app data after login
         initApp();
-
     } else {
         errorBox.classList.add('show');
         document.getElementById('loginErrorMsg').textContent =
@@ -1657,32 +1607,30 @@ function handleLogout() {
 }
 
 // ============================================================
-// CONFIGURATION — Replace with your actual values
+// CONFIGURATION
 // ============================================================
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbws0FnhTNMQKsgeDBisuZzops-1GyJI85pZBaeJerpsqfqu2H_8RjetaNArK5Ufll_wzw/exec';
 
 // ============================================================
-// GLOBAL DATA STORE
+// GLOBAL DATA STORE + SMART CACHE
 // ============================================================
-let allIncomeData   = [];
-let allExpenseData  = [];
-let isLoading       = false;
+let allIncomeData  = [];
+let allExpenseData = [];
+let dataLoaded     = false;
+let lastFetchTime  = 0;
+const CACHE_TTL    = 5 * 60 * 1000; // 5 minutes
 
-// Month names array
 const MONTHS = [
     'January','February','March','April','May','June',
     'July','August','September','October','November','December'
 ];
 
-// Year range
-const START_YEAR    = 2024;
-const END_YEAR      = 2030;
+const START_YEAR = 2024;
+const END_YEAR   = 2030;
 
 // ============================================================
 // UTILITY FUNCTIONS
 // ============================================================
-
-// Format number to Indian Rupee format
 function formatINR(amount) {
     const num = parseFloat(amount) || 0;
     return '₹' + num.toLocaleString('en-IN', {
@@ -1691,7 +1639,6 @@ function formatINR(amount) {
     });
 }
 
-// Sanitize text to prevent XSS
 function sanitizeText(str) {
     if (!str) return '';
     const div = document.createElement('div');
@@ -1699,7 +1646,6 @@ function sanitizeText(str) {
     return div.innerHTML;
 }
 
-// Format date for display
 function formatDate(dateStr) {
     if (!dateStr) return '—';
     try {
@@ -1708,185 +1654,128 @@ function formatDate(dateStr) {
         return d.toLocaleDateString('en-IN', {
             day: '2-digit', month: 'short', year: 'numeric'
         });
-    } catch(e) {
-        return dateStr;
-    }
+    } catch(e) { return dateStr; }
 }
-    // Date format helper to safely fill <input type="date">
+
 function formatDateForInput(dateStr) {
     if (!dateStr) return '';
     try {
         const d = new Date(dateStr);
         if (isNaN(d.getTime())) return dateStr;
         return d.toISOString().split('T')[0];
-    } catch(e) {
-        return dateStr;
-    }
+    } catch(e) { return dateStr; }
 }
 
-
-// Get month number (1-12) from date string
 function getMonthFromDate(dateStr) {
     if (!dateStr) return null;
     try {
         const d = new Date(dateStr);
         if (isNaN(d)) return null;
         return d.getMonth() + 1;
-    } catch(e) {
-        return null;
-    }
+    } catch(e) { return null; }
 }
 
-// Get month name from number
-function getMonthName(num) {
-    return MONTHS[parseInt(num) - 1] || '—';
-}
-
-// Balance CSS class helper
-function getBalanceClass(amount) {
-    const num = parseFloat(amount) || 0;
-    if (num > 0)  return 'balance-positive';
-    if (num < 0)  return 'balance-negative';
-    return 'balance-zero';
-}
-
-// Show toast notification
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
-    const toast = document.createElement('div');
+    const toast     = document.createElement('div');
     toast.className = `toast toast-${type}`;
-
-    const icons = { success: '✅', error: '❌', warning: '⚠️' };
-    toast.innerHTML = `<span>${icons[type] || '✅'}</span><span>${sanitizeText(message)}</span>`;
-
+    const icons     = { success: '✅', error: '❌', warning: '⚠️' };
+    toast.innerHTML = `<span>${icons[type] || '✅'}</span>
+                       <span>${sanitizeText(message)}</span>`;
     container.appendChild(toast);
-
     setTimeout(() => {
-        toast.style.animation = 'slideOut 0.3s ease forwards';
+        toast.style.opacity = '0';
         setTimeout(() => {
             if (toast.parentNode) toast.parentNode.removeChild(toast);
         }, 300);
     }, 3500);
 }
 
-// Show / hide loading overlay
 function setLoading(show) {
     const overlay = document.getElementById('loadingOverlay');
-    if (show) {
-        overlay.classList.add('show');
-    } else {
-        overlay.classList.remove('show');
-    }
+    if (show) overlay.classList.add('show');
+    else      overlay.classList.remove('show');
 }
 
-// Update sync status indicator
-function setSyncStatus(status) {
-    const dot    = document.getElementById('syncDot');
-    const label  = document.getElementById('syncStatus');
+function setSyncStatus(status, textMessage) {
+    const dot   = document.getElementById('syncDot');
+    const label = document.getElementById('syncStatus');
+    if (!dot || !label) return;
     dot.className = 'sync-dot';
-
     if (status === 'syncing') {
         dot.classList.add('syncing');
-        label.textContent = 'Syncing...';
+        label.textContent = textMessage || 'Syncing...';
     } else if (status === 'error') {
         dot.classList.add('error');
-        label.textContent = 'Error';
+        label.textContent = textMessage || 'Sync Issue';
     } else {
-        label.textContent = 'Connected';
+        label.textContent = textMessage || 'Connected';
     }
 }
 
-// Show inline alert
 function showAlert(alertId, msgId, message, type) {
     const alertEl = document.getElementById(alertId);
     const msgEl   = document.getElementById(msgId);
-    
-    // Hide opposing alert
-    if (alertId === 'expenseSuccess') {
-        const errEl = document.getElementById('expenseError');
-        if (errEl) errEl.classList.remove('show');
-    } else if (alertId === 'expenseError') {
-        const succEl = document.getElementById('expenseSuccess');
-        if (succEl) succEl.classList.remove('show');
-    }
-
     if (alertEl && msgEl) {
         msgEl.textContent = message;
         alertEl.classList.remove('alert-success', 'alert-error', 'alert-warning');
         alertEl.classList.add(`alert-${type}`, 'show');
-
-        setTimeout(() => {
-            alertEl.classList.remove('show');
-        }, 4000);
+        setTimeout(() => alertEl.classList.remove('show'), 4000);
     }
 }
 
 // ============================================================
-// YEAR DROPDOWN POPULATION
+// YEAR DROPDOWNS
 // ============================================================
 function populateYearDropdowns() {
     const currentYear = new Date().getFullYear();
-    const years = [];
+    const years       = [];
     for (let y = START_YEAR; y <= Math.max(END_YEAR, currentYear + 2); y++) {
         years.push(y);
     }
 
-    const dropdownIds = [
-        'incomeYear',
-        'expenseYear',
-        'dashboardYearFilter',
-        'incomeListYearFilter',
-        'expenseListYearFilter',
-        'reportYearFilter'
+    const filterIds = [
+        'dashboardYearFilter', 'incomeListYearFilter',
+        'expenseListYearFilter', 'reportYearFilter'
     ];
+    const formIds = ['incomeYear', 'expenseYear'];
 
-    dropdownIds.forEach(id => {
+    filterIds.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
-
-        // Keep existing "All Years" option for filter dropdowns
-        const isFilter = ['dashboardYearFilter','incomeListYearFilter',
-                          'expenseListYearFilter','reportYearFilter'].includes(id);
-
-        // Clear existing year options (keep "All Years" if filter)
-        if (isFilter) {
-            // Remove all options except first "All Years"
-            while (el.options.length > 1) el.remove(1);
-        } else {
-            el.innerHTML = '';
-            const placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.textContent = '-- Select Year --';
-            placeholder.disabled = true;
-            placeholder.selected = true;
-            el.appendChild(placeholder);
-        }
-
+        while (el.options.length > 1) el.remove(1);
         years.forEach(y => {
-            const opt = document.createElement('option');
-            opt.value = y;
+            const opt       = document.createElement('option');
+            opt.value       = y;
             opt.textContent = y;
-            if (y === currentYear && !isFilter) opt.selected = true;
+            el.appendChild(opt);
+        });
+    });
+
+    formIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.innerHTML = '';
+        years.forEach(y => {
+            const opt       = document.createElement('option');
+            opt.value       = y;
+            opt.textContent = y;
+            if (y === currentYear) opt.selected = true;
             el.appendChild(opt);
         });
     });
 }
 
-// Set today's date as default in date inputs
 function setDefaultDates() {
     const today = new Date().toISOString().split('T')[0];
-    const incomeDateEl  = document.getElementById('incomeDate');
-    const expenseDateEl = document.getElementById('expenseDate');
-    if (incomeDateEl)  incomeDateEl.value  = today;
-    if (expenseDateEl) expenseDateEl.value = today;
+    safeVal('incomeDate',  today);
+    safeVal('expenseDate', today);
 }
 
-// Auto-sync year dropdown when date changes
 function syncYearFromDate(dateInputId, yearSelectId) {
     const dateEl = document.getElementById(dateInputId);
     const yearEl = document.getElementById(yearSelectId);
     if (!dateEl || !yearEl) return;
-
     dateEl.addEventListener('change', function() {
         const selectedYear = new Date(this.value).getFullYear();
         if (selectedYear) {
@@ -1904,17 +1793,13 @@ function syncYearFromDate(dateInputId, yearSelectId) {
 // TAB NAVIGATION
 // ============================================================
 function switchTab(tabName) {
-    // Hide all tabs
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-
-    // Show selected tab
     const tab = document.getElementById(`tab-${tabName}`);
     const btn = document.getElementById(`nav-${tabName}`);
     if (tab) tab.classList.add('active');
     if (btn) btn.classList.add('active');
 
-    // Refresh relevant UI
     if (tabName === 'dashboard') updateDashboard();
     if (tabName === 'income')    renderIncomeTable();
     if (tabName === 'expense')   renderExpenseTable();
@@ -1922,72 +1807,30 @@ function switchTab(tabName) {
 }
 
 // ============================================================
-// API CALL — FETCH WITH JSONP FALLBACK FOR GOOGLE APPS SCRIPT
+// DATA FETCHING — Smart Cache
 // ============================================================
-function callAPI(params) {
-    return new Promise((resolve, reject) => {
-        const callbackName = 'callback_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-        const url = new URL(APPS_SCRIPT_URL);
+async function fetchAllData(forceRefresh = false) {
+    const now = Date.now();
 
-        Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-        url.searchParams.set('callback', callbackName);
+    if (!forceRefresh && dataLoaded && (now - lastFetchTime) < CACHE_TTL) {
+        return true;
+    }
 
-        const script = document.createElement('script');
-        let settled = false;
-
-        const timeout = setTimeout(() => {
-            if (!settled) {
-                settled = true;
-                cleanup();
-                reject(new Error('Request timed out. Please check your internet connection.'));
-            }
-        }, 15000);
-
-        window[callbackName] = function(data) {
-            if (!settled) {
-                settled = true;
-                cleanup();
-                resolve(data);
-            }
-        };
-
-        function cleanup() {
-            clearTimeout(timeout);
-            if (script.parentNode) script.parentNode.removeChild(script);
-            delete window[callbackName];
-        }
-
-        script.onerror = function() {
-            if (!settled) {
-                settled = true;
-                cleanup();
-                reject(new Error('Network error. Could not reach Google Apps Script.'));
-            }
-        };
-
-        script.src = url.toString();
-        document.head.appendChild(script);
-    });
-}
-
-// ============================================================
-// DATA FETCHING
-// ============================================================
-async function fetchAllData() {
-    setSyncStatus('syncing');
+    setSyncStatus('syncing', 'Loading...');
     try {
         const response = await callAPI({ action: 'getAllData' });
-
         if (response.status === 'success') {
             allIncomeData  = response.income  || [];
             allExpenseData = response.expense || [];
-            setSyncStatus('ok');
+            dataLoaded     = true;
+            lastFetchTime  = Date.now();
+            setSyncStatus('ok', 'Connected');
             return true;
         } else {
             throw new Error(response.message || 'Failed to fetch data');
         }
     } catch (err) {
-        setSyncStatus('error');
+        setSyncStatus('error', 'Load Error');
         console.error('Fetch error:', err);
         showToast('Could not load data: ' + err.message, 'error');
         return false;
@@ -1998,167 +1841,78 @@ async function refreshAllData() {
     const btns = document.querySelectorAll('.btn-refresh');
     btns.forEach(b => b.classList.add('spinning'));
 
-    await fetchAllData();
+    await fetchAllData(true);
+    syncYearFiltersFromData();
     updateDashboard();
     renderIncomeTable();
     renderExpenseTable();
     generateReport();
 
     btns.forEach(b => b.classList.remove('spinning'));
-    showToast('Data refreshed successfully!', 'success');
+    showToast('Data refreshed!', 'success');
 }
-
-// ============================================================
-// SUBMIT INCOME
-// ============================================================
-// ============================================================
-// SUBMIT INCOME
-// ============================================================
-// ============================================================
-// SUBMIT INCOME (Handles both ADD and EDIT/UPDATE)
-// ============================================================
-// ============================================================
-// INCOME FUNCTIONS (FIXED)
-// ============================================================
-
-function resetIncomeForm() {
-    const form = document.getElementById('incomeForm');
-    if (form) form.reset();
-    setDefaultDates();
-    safeSetValue('incomeEditId', '');
-
-    // Reset UI to Normal Add Mode
-    safeSetText('incomeFormTitle', '➕ Add New Income');
-    safeSetText('addIncomeBtn', '➕ Add Income');
-    safeSetDisplay('incomeResetBtn', 'inline-flex');
-    safeSetDisplay('cancelIncomeEditBtn', 'none');
-
-    // Reset Year
-    const currentYear = new Date().getFullYear();
-    const yearEl = document.getElementById('incomeYear');
-    if (yearEl) {
-        for (let i = 0; i < yearEl.options.length; i++) {
-            if (parseInt(yearEl.options[i].value) === currentYear) {
-                yearEl.selectedIndex = i;
-                break;
-            }
-        }
-    }
-}
-
-function cancelEditIncome() {
-    resetIncomeForm();
-    showToast('Income edit cancelled', 'warning');
-}
-
-function editIncomeRecord(item) {
-    if (!item) return;
-    switchTab('income');
-
-    // 1. Set Hidden ID & Form Data
-    safeSetValue('incomeEditId', item.id);
-    safeSetValue('incomeDate', formatDateForInput(item.date));
-    safeSetValue('incomeDescription', item.description);
-    safeSetValue('incomeAmount', item.amount);
-    safeSetValue('incomeCategory', item.category);
-
-    // 2. Set Year Dropdown
-    const yearEl = document.getElementById('incomeYear');
-    if (yearEl) {
-        for (let i = 0; i < yearEl.options.length; i++) {
-            if (parseInt(yearEl.options[i].value) === parseInt(item.year)) {
-                yearEl.selectedIndex = i;
-                break;
-            }
-        }
-    }
-
-    // 3. Switch UI to Edit Mode (3 Buttons Visible!)
-    safeSetText('incomeFormTitle', '✏️ Edit Income');
-    safeSetText('addIncomeBtn', '💾 Update Income');
-    safeSetDisplay('incomeResetBtn', 'inline-flex');
-    safeSetDisplay('cancelIncomeEditBtn', 'inline-flex');
-
-    // 4. Smooth Scroll to Form
-    const form = document.getElementById('incomeForm');
-    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    showToast('Editing income entry', 'warning');
-}
-
-// Instant & Reliable submitIncome
-// ============================================================
-// 100% WORKING SUBMIT INCOME (AUTO-OPENS TABLE & SHOWS RECORD)
+    // ============================================================
+// SUBMIT INCOME — Optimistic UI + Background Sync
 // ============================================================
 async function submitIncome(event) {
     event.preventDefault();
 
-    const btn = document.getElementById('addIncomeBtn');
-
-    const getVal = (id) => {
-        const el = document.getElementById(id);
-        return el ? el.value.trim() : '';
-    };
-
-    const editId      = getVal('incomeEditId');
+    const btn         = document.getElementById('addIncomeBtn');
+    const editId      = safeGetValue('incomeEditId');
     const isEdit      = editId !== '';
-    const date        = getVal('incomeDate');
-    const yearStr     = getVal('incomeYear');
-    const category    = getVal('incomeCategory');
-    const amountNum   = parseFloat(getVal('incomeAmount'));
-    const description = getVal('incomeDescription');
+    const date        = safeGetValue('incomeDate');
+    const yearStr     = safeGetValue('incomeYear');
+    const category    = safeGetValue('incomeCategory');
+    const amountNum   = parseFloat(safeGetValue('incomeAmount'));
+    const description = safeGetValue('incomeDescription');
 
-    if (!date || !yearStr || !category || !description || isNaN(amountNum) || amountNum <= 0) {
+    if (!date || !yearStr || !category || !description ||
+        isNaN(amountNum) || amountNum <= 0) {
         showAlert('incomeError', 'incomeErrorMsg',
-            'Please fill all fields correctly. Amount must be greater than 0.', 'error');
+            'Please fill all fields correctly. Amount must be > 0.', 'error');
         return;
     }
 
-    const year = parseInt(yearStr);
-    const monthNum = getMonthFromDate(date);
+    const year      = parseInt(yearStr);
+    const monthNum  = getMonthFromDate(date);
     const monthName = MONTHS[monthNum - 1] || '';
 
     if (btn) {
-        btn.disabled = true;
+        btn.disabled    = true;
         btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
     }
 
-    const recordId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random() * 1000));
+    const recordId = isEdit
+        ? editId
+        : (Date.now().toString() + '_' + Math.floor(Math.random() * 1000));
 
+    const record = {
+        id       : recordId,
+        date     : date,
+        year     : year,
+        description: description,
+        category : category,
+        amount   : amountNum,
+        month    : monthName,
+        monthNum : monthNum,
+        timestamp: new Date().toISOString()
+    };
+
+    // STEP 1: Instant local update
     if (isEdit) {
-        const idx = allIncomeData.findIndex(item => String(item.id) === String(editId));
-        if (idx !== -1) {
-            allIncomeData[idx] = {
-                id: editId,
-                date: date,
-                year: year,
-                description: description,
-                category: category,
-                amount: amountNum,
-                month: monthName,
-                monthNum: monthNum
-            };
-        }
-        showToast('Income updated successfully!', 'success');
+        const idx = allIncomeData.findIndex(
+            item => String(item.id) === String(editId)
+        );
+        if (idx !== -1) allIncomeData[idx] = record;
+        showToast('Income updated!', 'success');
     } else {
-        const newRecord = {
-            id: recordId,
-            date: date,
-            year: year,
-            description: description,
-            category: category,
-            amount: amountNum,
-            month: monthName,
-            monthNum: monthNum,
-            timestamp: new Date().toISOString()
-        };
-        allIncomeData.push(newRecord);
+        allIncomeData.push(record);
         showToast(`Income ${formatINR(amountNum)} added!`, 'success');
     }
 
-    // AUTO-OPEN INCOME TABLE CONTAINER
+    // STEP 2: Instant UI render
     const tableContainer = document.getElementById('incomeTableContainer');
-    const toggleBtn = document.getElementById('toggleIncomeRecordsBtn');
+    const toggleBtn      = document.getElementById('toggleIncomeRecordsBtn');
     if (tableContainer) {
         tableContainer.style.display = 'block';
         if (toggleBtn) toggleBtn.innerHTML = '🙈 Hide Records';
@@ -2170,63 +1924,138 @@ async function submitIncome(event) {
     generateReport();
 
     if (btn) {
-        btn.disabled = false;
+        btn.disabled    = false;
         btn.textContent = '➕ Add Income';
     }
 
+    // STEP 3: Background Google Sheet sync
     try {
-        setSyncStatus('syncing', 'Syncing...');
-        const response = await callAPI({
-            action: isEdit ? 'updateIncome' : 'addIncome',
-            id: recordId,
-            date: date,
-            year: year,
+        await queueSyncAction({
+            action     : isEdit ? 'updateIncome' : 'addIncome',
+            id         : recordId,
+            date       : date,
+            year       : year,
             description: description,
-            category: category,
-            amount: amountNum,
-            month: monthName,
-            monthNum: monthNum
+            category   : category,
+            amount     : amountNum,
+            month      : monthName,
+            monthNum   : monthNum
         });
-
-        if (response && response.status === 'success') {
-            setSyncStatus('ok', 'Connected');
-        } else {
-            setSyncStatus('error', 'Sync Delay');
-        }
     } catch (err) {
-        console.warn('Google Sheet Sync Delay:', err);
-        setSyncStatus('error', 'Sync Delay');
+        console.warn('Income sheet sync delayed:', err.message);
     }
 }
 
+// ============================================================
+// SUBMIT EXPENSE — Optimistic UI + Background Sync
+// ============================================================
+async function submitExpense(event) {
+    event.preventDefault();
 
+    const btn         = document.getElementById('addExpenseBtn');
+    const editId      = safeGetValue('expenseEditId');
+    const isEdit      = editId !== '';
+    const date        = safeGetValue('expenseDate');
+    const yearStr     = safeGetValue('expenseYear');
+    const category    = safeGetValue('expenseCategory');
+    const amountNum   = parseFloat(safeGetValue('expenseAmount'));
+    const description = safeGetValue('expenseDescription');
 
+    if (!date || !yearStr || !category || !description ||
+        isNaN(amountNum) || amountNum <= 0) {
+        showAlert('expenseError', 'expenseErrorMsg',
+            'Please fill all fields correctly. Amount must be > 0.', 'error');
+        return;
+    }
 
+    const year      = parseInt(yearStr);
+    const monthNum  = getMonthFromDate(date);
+    const monthName = MONTHS[monthNum - 1] || '';
 
+    if (btn) {
+        btn.disabled    = true;
+        btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
+    }
+
+    const recordId = isEdit
+        ? editId
+        : (Date.now().toString() + '_' + Math.floor(Math.random() * 1000));
+
+    const record = {
+        id         : recordId,
+        date       : date,
+        year       : year,
+        description: description,
+        category   : category,
+        amount     : amountNum,
+        month      : monthName,
+        monthNum   : monthNum,
+        timestamp  : new Date().toISOString()
+    };
+
+    // STEP 1: Instant local update
+    if (isEdit) {
+        const idx = allExpenseData.findIndex(
+            item => String(item.id) === String(editId)
+        );
+        if (idx !== -1) allExpenseData[idx] = record;
+        showToast('Expense updated!', 'success');
+    } else {
+        allExpenseData.push(record);
+        showToast(`Expense ${formatINR(amountNum)} added!`, 'success');
+    }
+
+    // STEP 2: Instant UI render
+    const tableContainer = document.getElementById('expenseTableContainer');
+    const toggleBtn      = document.getElementById('toggleExpenseRecordsBtn');
+    if (tableContainer) {
+        tableContainer.style.display = 'block';
+        if (toggleBtn) toggleBtn.innerHTML = '🙈 Hide Records';
+    }
+
+    resetExpenseForm();
+    updateDashboard();
+    renderExpenseTable();
+    generateReport();
+
+    if (btn) {
+        btn.disabled    = false;
+        btn.textContent = '➕ Add Expense';
+    }
+
+    // STEP 3: Background Google Sheet sync
+    try {
+        await queueSyncAction({
+            action     : isEdit ? 'updateExpense' : 'addExpense',
+            id         : recordId,
+            date       : date,
+            year       : year,
+            description: description,
+            category   : category,
+            amount     : amountNum,
+            month      : monthName,
+            monthNum   : monthNum
+        });
+    } catch (err) {
+        console.warn('Expense sheet sync delayed:', err.message);
+    }
+}
 
 // ============================================================
-// SUBMIT EXPENSE
+// RESET INCOME FORM
 // ============================================================
-// ============================================================
-// EXPENSE FUNCTIONS (FIXED)
-// ============================================================
-
-function resetExpenseForm() {
-    const form = document.getElementById('expenseForm');
+function resetIncomeForm() {
+    const form = document.getElementById('incomeForm');
     if (form) form.reset();
-    
     setDefaultDates();
-    safeVal('expenseEditId', '');
+    safeSetValue('incomeEditId', '');
+    safeSetText('incomeFormTitle', '➕ Add New Income');
+    safeSetText('addIncomeBtn',    '➕ Add Income');
+    safeSetDisplay('incomeResetBtn',      'inline-flex');
+    safeSetDisplay('cancelIncomeEditBtn', 'none');
 
-    // Safely reset form UI
-    safeText('expenseFormTitle', '➕ Add New Expense');
-    safeText('addExpenseBtn', '➕ Add Expense');
-    safeDisp('expenseResetBtn', 'inline-flex');
-    safeDisp('cancelExpenseEditBtn', 'none');
-
-    // Safely reset year dropdown
     const currentYear = new Date().getFullYear();
-    const yearEl = document.getElementById('expenseYear');
+    const yearEl      = document.getElementById('incomeYear');
     if (yearEl) {
         for (let i = 0; i < yearEl.options.length; i++) {
             if (parseInt(yearEl.options[i].value) === currentYear) {
@@ -2237,20 +2066,89 @@ function resetExpenseForm() {
     }
 }
 
+// ============================================================
+// RESET EXPENSE FORM
+// ============================================================
+function resetExpenseForm() {
+    const form = document.getElementById('expenseForm');
+    if (form) form.reset();
+    setDefaultDates();
+    safeSetValue('expenseEditId', '');
+    safeSetText('expenseFormTitle', '➕ Add New Expense');
+    safeSetText('addExpenseBtn',    '➕ Add Expense');
+    safeSetDisplay('expenseResetBtn',      'inline-flex');
+    safeSetDisplay('cancelExpenseEditBtn', 'none');
+
+    const currentYear = new Date().getFullYear();
+    const yearEl      = document.getElementById('expenseYear');
+    if (yearEl) {
+        for (let i = 0; i < yearEl.options.length; i++) {
+            if (parseInt(yearEl.options[i].value) === currentYear) {
+                yearEl.selectedIndex = i;
+                break;
+            }
+        }
+    }
+}
+
+// ============================================================
+// CANCEL EDIT
+// ============================================================
+function cancelEditIncome() {
+    resetIncomeForm();
+    showToast('Income edit cancelled', 'warning');
+}
+
 function cancelEditExpense() {
     resetExpenseForm();
     showToast('Expense edit cancelled', 'warning');
 }
 
+// ============================================================
+// EDIT INCOME
+// ============================================================
+function editIncomeRecord(item) {
+    if (!item) return;
+    switchTab('income');
+
+    safeSetValue('incomeEditId',      item.id);
+    safeSetValue('incomeDate',        formatDateForInput(item.date));
+    safeSetValue('incomeDescription', item.description);
+    safeSetValue('incomeAmount',      item.amount);
+    safeSetValue('incomeCategory',    item.category);
+
+    const yearEl = document.getElementById('incomeYear');
+    if (yearEl) {
+        for (let i = 0; i < yearEl.options.length; i++) {
+            if (parseInt(yearEl.options[i].value) === parseInt(item.year)) {
+                yearEl.selectedIndex = i;
+                break;
+            }
+        }
+    }
+
+    safeSetText('incomeFormTitle',          '✏️ Edit Income');
+    safeSetText('addIncomeBtn',             '💾 Update Income');
+    safeSetDisplay('incomeResetBtn',        'inline-flex');
+    safeSetDisplay('cancelIncomeEditBtn',   'inline-flex');
+
+    const form = document.getElementById('incomeForm');
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showToast('Editing income entry', 'warning');
+}
+
+// ============================================================
+// EDIT EXPENSE
+// ============================================================
 function editExpenseRecord(item) {
     if (!item) return;
     switchTab('expense');
 
-    safeSetValue('expenseEditId', item.id);
-    safeSetValue('expenseDate', item.date);
+    safeSetValue('expenseEditId',      item.id);
+    safeSetValue('expenseDate',        formatDateForInput(item.date));
     safeSetValue('expenseDescription', item.description);
-    safeSetValue('expenseAmount', item.amount);
-    safeSetValue('expenseCategory', item.category);
+    safeSetValue('expenseAmount',      item.amount);
+    safeSetValue('expenseCategory',    item.category);
 
     const yearEl = document.getElementById('expenseYear');
     if (yearEl) {
@@ -2262,249 +2160,51 @@ function editExpenseRecord(item) {
         }
     }
 
-    safeSetText('expenseFormTitle', '✏️ Edit Expense');
-    safeSetText('addExpenseBtn', '💾 Update Expense');
-    safeSetDisplay('cancelExpenseEditBtn', 'inline-flex');
+    safeSetText('expenseFormTitle',         '✏️ Edit Expense');
+    safeSetText('addExpenseBtn',            '💾 Update Expense');
+    safeSetDisplay('expenseResetBtn',       'inline-flex');
+    safeSetDisplay('cancelExpenseEditBtn',  'inline-flex');
 
     const form = document.getElementById('expenseForm');
     if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
     showToast('Editing expense entry', 'warning');
 }
 
-// Fixed & Safe submitExpense
-// Instant & Reliable submitExpense
 // ============================================================
-// 100% WORKING SUBMIT EXPENSE (AUTO-OPENS TABLE & SHOWS RECORD)
+// DELETE ENTRY — Optimistic UI + Background Sync
 // ============================================================
-// ============================================================
-// FIXED & BULLETPROOF SUBMIT EXPENSE (MIRRORS WORKING INCOME FLOW)
-// ============================================================
-function resetExpenseForm() {
-    const form = document.getElementById('expenseForm');
-    if (form) form.reset();
+async function deleteEntry(type, id) {
+    if (!confirm(`Are you sure you want to delete this ${type} entry?`)) return;
 
-    setDefaultDates();
-    safeSetValue('expenseEditId', '');
-
-    // Safely update UI titles & buttons
-    safeSetText('expenseFormTitle', '➕ Add New Expense');
-    safeSetText('addExpenseBtn', '➕ Add Expense');
-    safeSetDisplay('expenseResetBtn', 'inline-flex');
-    safeSetDisplay('cancelExpenseEditBtn', 'none');
-
-    // Auto-sync year dropdown with current year
-    const currentYear = new Date().getFullYear();
-    const yearEl = document.getElementById('expenseYear');
-    if (yearEl) {
-        for (let i = 0; i < yearEl.options.length; i++) {
-            if (parseInt(yearEl.options[i].value) === currentYear) {
-                yearEl.selectedIndex = i;
-                break;
-            }
-        }
-    }
-}
-
-// 100% FIXED SUBMIT EXPENSE
-async function submitExpense(event) {
-    event.preventDefault();
-
-    const btn = document.getElementById('addExpenseBtn');
-
-    const editId      = safeGetValue('expenseEditId');
-    const isEdit      = editId !== '';
-    const date        = safeGetValue('expenseDate');
-    const yearRaw     = safeGetValue('expenseYear');
-    const category    = safeGetValue('expenseCategory');
-    const amountVal   = parseFloat(safeGetValue('expenseAmount'));
-    const description = safeGetValue('expenseDescription');
-
-    // Validation
-    if (!date || !yearRaw || !category || !description || isNaN(amountVal) || amountVal <= 0) {
-        showAlert('expenseError', 'expenseErrorMsg',
-            'Please fill all fields correctly. Amount must be greater than 0.', 'error');
-        return;
-    }
-
-    const year = parseInt(yearRaw);
-    const monthNum = getMonthFromDate(date);
-    const monthName = MONTHS[monthNum - 1] || '';
-
-    if (btn) {
-        btn.disabled = true;
-        btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
-    }
-
-    setSyncStatus('syncing', 'Syncing...');
-    const recordId = isEdit ? editId : (Date.now().toString() + '_' + Math.floor(Math.random() * 1000));
-
-    try {
-        const response = await callAPI({
-            action     : isEdit ? 'updateExpense' : 'addExpense',
-            id         : recordId,
-            date       : date,
-            year       : year,
-            description: description,
-            category   : category,
-            amount     : amountVal,
-            month      : monthName,
-            monthNum   : monthNum
-        });
-
-        if (response && response.status === 'success') {
-            const finalId = response.id || recordId;
-
-            // 1. Update Local Data Array
-            if (isEdit) {
-                const idx = allExpenseData.findIndex(item => String(item.id) === String(editId));
-                if (idx !== -1) {
-                    allExpenseData[idx] = {
-                        id: editId, date, year, description, category, amount: amountVal, month: monthName, monthNum
-                    };
-                }
-                showAlert('expenseSuccess', 'expenseSuccessMsg', 'Expense updated successfully!', 'success');
-                showToast('Expense updated!', 'success');
-            } else {
-                allExpenseData.push({
-                    id: finalId, date, year, description, category, amount: amountVal, month: monthName, monthNum,
-                    timestamp: new Date().toISOString()
-                });
-                showAlert('expenseSuccess', 'expenseSuccessMsg', `Expense of ${formatINR(amountVal)} added successfully!`, 'success');
-                showToast(`Expense ${formatINR(amountVal)} saved!`, 'success');
-            }
-
-            // 2. Safely Reset Form
-            resetExpenseForm();
-
-            // 3. Auto-Open Table if hidden
-            const tableContainer = document.getElementById('expenseTableContainer');
-            const toggleBtn = document.getElementById('toggleExpenseRecordsBtn');
-            if (tableContainer) {
-                tableContainer.style.display = 'block';
-                if (toggleBtn) toggleBtn.innerHTML = '🙈 Hide Records';
-            }
-
-            // 4. Force Table & Dashboard Refresh
-            updateDashboard();
-            renderExpenseTable();
-            generateReport();
-
-            setSyncStatus('ok', 'Connected');
-
-        } else {
-            throw new Error(response ? response.message : 'Invalid response from server');
-        }
-
-    } catch (err) {
-        setSyncStatus('error', 'Error');
-        console.error('Submit expense error:', err);
-        showAlert('expenseError', 'expenseErrorMsg', 'Error: ' + err.message, 'error');
-        showToast('Failed to save expense: ' + err.message, 'error');
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.textContent = isEdit ? '💾 Update Expense' : '➕ Add Expense';
-        }
-    }
-}
-
-
-
-
-
-
-
-
-// ============================================================
-// RESET FORMS
-// ============================================================
-// ============================================================
-// RESET INCOME FORM (also exits edit mode back to Add mode)
-// ============================================================
-
-
-// ============================================================
-// CANCEL EDIT — same as reset but explicit for clarity
-// ============================================================
-function cancelEditIncome() {
-    resetIncomeForm();
-    showToast('Edit cancelled', 'warning');
-}
-
-function resetExpenseForm() {
-    const form = document.getElementById('expenseForm');
-    if (form) form.reset();
-
-    setDefaultDates();
-    safeSetValue('expenseEditId', '');
-
-    // Safely update UI titles & buttons
-    safeSetText('expenseFormTitle', '➕ Add New Expense');
-    safeSetText('addExpenseBtn', '➕ Add Expense');
-    safeSetDisplay('expenseResetBtn', 'inline-flex');
-    safeSetDisplay('cancelExpenseEditBtn', 'none');
-
-    // Auto-sync year dropdown with current year
-    const currentYear = new Date().getFullYear();
-    const yearEl = document.getElementById('expenseYear');
-    if (yearEl) {
-        for (let i = 0; i < yearEl.options.length; i++) {
-            if (parseInt(yearEl.options[i].value) === currentYear) {
-                yearEl.selectedIndex = i;
-                break;
-            }
-        }
-    }
-}
-
-
-
-// ============================================================
-// CANCEL EDIT — same as reset but explicit for clarity
-// ============================================================
-function cancelEditExpense() {
-    resetExpenseForm();
-    showToast('Edit cancelled', 'warning');
-}
-
-
-// ============================================================
-// DELETE ENTRY
-// ============================================================
-async function deleteEntry(type, id, rowIndex) {
-    if (!confirm(`Are you sure you want to delete this ${type} entry?`)) {
-        return;
-    }
-
-    // 1. Instant UI Delete
+    // STEP 1: Instant local delete
     if (type === 'income') {
-        allIncomeData = allIncomeData.filter(item => String(item.id) !== String(id));
+        allIncomeData = allIncomeData.filter(
+            item => String(item.id) !== String(id)
+        );
         renderIncomeTable();
     } else {
-        allExpenseData = allExpenseData.filter(item => String(item.id) !== String(id));
+        allExpenseData = allExpenseData.filter(
+            item => String(item.id) !== String(id)
+        );
         renderExpenseTable();
     }
 
     updateDashboard();
     generateReport();
-    showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} record deleted.`, 'warning');
+    showToast(
+        `${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`,
+        'warning'
+    );
 
-    // 2. Background Queued Google Sheet Sync
+    // STEP 2: Background sheet sync
     try {
-        await queueSyncAction({
-            action: 'deleteEntry',
-            type: type,
-            id: id
-        });
+        await queueSyncAction({ action: 'deleteEntry', type, id });
     } catch (err) {
-        console.warn('Delete sync delay handled:', err);
+        console.warn('Delete sync delayed:', err.message);
     }
 }
-
-
 // ============================================================
-// DASHBOARD UPDATE
+// DASHBOARD
 // ============================================================
 function updateDashboard() {
     const selectedYear = document.getElementById('dashboardYearFilter').value;
@@ -2512,62 +2212,58 @@ function updateDashboard() {
     let incomeData  = allIncomeData;
     let expenseData = allExpenseData;
 
-    // Filter by year if not "all"
     if (selectedYear !== 'all') {
-        const yr = parseInt(selectedYear);
-        incomeData  = allIncomeData.filter(item => parseInt(item.year) === yr);
+        const yr    = parseInt(selectedYear);
+        incomeData  = allIncomeData.filter(item  => parseInt(item.year) === yr);
         expenseData = allExpenseData.filter(item => parseInt(item.year) === yr);
     }
 
-    // Calculate totals
-    const totalIncome  = incomeData.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
-    const totalExpense = expenseData.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
+    const totalIncome  = incomeData.reduce((s, i)  => s + (parseFloat(i.amount) || 0), 0);
+    const totalExpense = expenseData.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
     const balance      = totalIncome - totalExpense;
 
-    // Update cards
-    document.getElementById('dashTotalIncome').textContent  = formatINR(totalIncome);
-    document.getElementById('dashTotalExpense').textContent = formatINR(totalExpense);
-    document.getElementById('dashFinalBalance').textContent = formatINR(balance);
+    safeText('dashTotalIncome',  formatINR(totalIncome));
+    safeText('dashTotalExpense', formatINR(totalExpense));
+    safeText('dashFinalBalance', formatINR(balance));
+    safeText('dashIncomeCount',
+        `${incomeData.length} ${incomeData.length === 1 ? 'entry' : 'entries'}`);
+    safeText('dashExpenseCount',
+        `${expenseData.length} ${expenseData.length === 1 ? 'entry' : 'entries'}`);
 
-    // Update counts
-    document.getElementById('dashIncomeCount').textContent =
-        `${incomeData.length} ${incomeData.length === 1 ? 'entry' : 'entries'}`;
-    document.getElementById('dashExpenseCount').textContent =
-        `${expenseData.length} ${expenseData.length === 1 ? 'entry' : 'entries'}`;
-
-    // Balance label and color
     const balanceEl    = document.getElementById('dashFinalBalance');
     const balanceSub   = document.getElementById('dashBalanceSub');
     const balanceLabel = document.getElementById('dashBalanceLabel');
 
-    balanceEl.className = 'summary-card-value';
-    if (balance > 0) {
-        balanceEl.classList.add('positive');
-        balanceSub.textContent = '✅ Surplus';
-    } else if (balance < 0) {
-        balanceEl.classList.add('negative');
-        balanceSub.textContent = '⚠️ Deficit';
-    } else {
-        balanceSub.textContent = 'Break Even';
+    if (balanceEl) {
+        balanceEl.className = 'summary-card-value';
+        if (balance > 0) {
+            balanceEl.classList.add('positive');
+            if (balanceSub) balanceSub.textContent = '✅ Surplus';
+        } else if (balance < 0) {
+            balanceEl.classList.add('negative');
+            if (balanceSub) balanceSub.textContent = '⚠️ Deficit';
+        } else {
+            if (balanceSub) balanceSub.textContent = 'Break Even';
+        }
     }
 
-    if (selectedYear === 'all') {
-        balanceLabel.textContent = 'Final Balance';
-    } else {
-        balanceLabel.textContent = `${selectedYear} Balance`;
+    if (balanceLabel) {
+        balanceLabel.textContent = selectedYear === 'all'
+            ? 'Final Balance'
+            : `${selectedYear} Balance`;
     }
 
-    // Render recent tables
     renderRecentIncome(incomeData);
     renderRecentExpense(expenseData);
 }
 
-// Render recent income (last 5)
+// ============================================================
+// RECENT INCOME (Dashboard last 5)
+// ============================================================
 function renderRecentIncome(data) {
     const tbody = document.getElementById('recentIncomeTable');
     if (!tbody) return;
 
-    // Sort by date descending, take last 5
     const recent = [...data]
         .sort((a, b) => new Date(b.date) - new Date(a.date))
         .slice(0, 5);
@@ -2575,7 +2271,7 @@ function renderRecentIncome(data) {
     if (recent.length === 0) {
         tbody.innerHTML = `<tr><td colspan="3">
             <div class="empty-state" style="padding:24px;">
-                <span class="empty-state-icon" style="font-size:32px;">💰</span>
+                <span style="font-size:32px;">💰</span>
                 <p>No income entries yet</p>
             </div></td></tr>`;
         return;
@@ -2584,16 +2280,18 @@ function renderRecentIncome(data) {
     tbody.innerHTML = recent.map(item => `
         <tr>
             <td>${sanitizeText(formatDate(item.date))}</td>
-            <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+            <td style="max-width:160px;overflow:hidden;
+                text-overflow:ellipsis;white-space:nowrap;"
                 title="${sanitizeText(item.description)}">
                 ${sanitizeText(item.description)}
             </td>
             <td class="amount-positive">${formatINR(item.amount)}</td>
-        </tr>
-    `).join('');
+        </tr>`).join('');
 }
 
-// Render recent expenses (last 5)
+// ============================================================
+// RECENT EXPENSE (Dashboard last 5)
+// ============================================================
 function renderRecentExpense(data) {
     const tbody = document.getElementById('recentExpenseTable');
     if (!tbody) return;
@@ -2605,7 +2303,7 @@ function renderRecentExpense(data) {
     if (recent.length === 0) {
         tbody.innerHTML = `<tr><td colspan="3">
             <div class="empty-state" style="padding:24px;">
-                <span class="empty-state-icon" style="font-size:32px;">💸</span>
+                <span style="font-size:32px;">💸</span>
                 <p>No expense entries yet</p>
             </div></td></tr>`;
         return;
@@ -2614,43 +2312,35 @@ function renderRecentExpense(data) {
     tbody.innerHTML = recent.map(item => `
         <tr>
             <td>${sanitizeText(formatDate(item.date))}</td>
-            <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+            <td style="max-width:160px;overflow:hidden;
+                text-overflow:ellipsis;white-space:nowrap;"
                 title="${sanitizeText(item.description)}">
                 ${sanitizeText(item.description)}
             </td>
             <td class="amount-negative">${formatINR(item.amount)}</td>
-        </tr>
-    `).join('');
+        </tr>`).join('');
 }
 
 // ============================================================
-// RENDER INCOME TABLE (Full List)
-// ============================================================
-// ============================================================
-// FIXED RENDER INCOME TABLE (CORRECT VARIABLE ORDER)
+// RENDER INCOME TABLE
 // ============================================================
 function renderIncomeTable() {
-    const tbody = document.getElementById('incomeTableBody');
-    const filterEl = document.getElementById('incomeListYearFilter');
+    const tbody      = document.getElementById('incomeTableBody');
+    const filterEl   = document.getElementById('incomeListYearFilter');
     const yearFilter = filterEl ? filterEl.value : 'all';
-
     if (!tbody) return;
 
     let data = [...allIncomeData];
-
-    // Filter by year
     if (yearFilter !== 'all') {
         data = data.filter(item => parseInt(item.year) === parseInt(yearFilter));
     }
 
-    // UPDATE RECORD COUNT BADGE (Safely after yearFilter & data are defined)
-    const incomeBadge = document.getElementById('incomeRecordCountBadge');
-    if (incomeBadge) {
-        const totalCount = yearFilter === 'all' ? allIncomeData.length : data.length;
-        incomeBadge.textContent = `${totalCount} ${totalCount === 1 ? 'Record' : 'Records'}`;
+    const badge = document.getElementById('incomeRecordCountBadge');
+    if (badge) {
+        const count = yearFilter === 'all' ? allIncomeData.length : data.length;
+        badge.textContent = `${count} ${count === 1 ? 'Record' : 'Records'}`;
     }
 
-    // Sort by date descending
     data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (data.length === 0) {
@@ -2658,78 +2348,79 @@ function renderIncomeTable() {
             <div class="empty-state">
                 <span class="empty-state-icon">💰</span>
                 <h3>No Income Records</h3>
-                <p>${yearFilter !== 'all' ? `No income found for ${yearFilter}.` : 'Add your first income entry.'}</p>
+                <p>${yearFilter !== 'all'
+                    ? `No income for ${yearFilter}.`
+                    : 'Add your first income.'}</p>
             </div></td></tr>`;
         return;
     }
 
     let totalAmount = 0;
-    let rows = '';
+    let rows        = '';
 
     data.forEach((item, index) => {
         totalAmount += parseFloat(item.amount) || 0;
-        rows += '<tr>' +
-            '<td>' + (index + 1) + '</td>' +
-            '<td>' + sanitizeText(formatDate(item.date)) + '</td>' +
-            '<td>' + sanitizeText(item.year) + '</td>' +
-            '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + sanitizeText(item.description) + '">' +
-                sanitizeText(item.description) +
-            '</td>' +
-            '<td><span class="badge badge-income">' + sanitizeText(item.category) + '</span></td>' +
-            '<td class="amount-positive">' + formatINR(item.amount) + '</td>' +
-            '<td>' +
-                '<button class="btn-edit" data-index="' + index + '" title="Edit this entry">✏️</button>' +
-                '<button class="btn-delete" onclick="deleteEntry(\'income\',\'' + sanitizeText(item.id) + '\',' + index + ')" title="Delete this entry">🗑️</button>' +
-            '</td>' +
-        '</tr>';
+        rows += `<tr>
+            <td>${index + 1}</td>
+            <td>${sanitizeText(formatDate(item.date))}</td>
+            <td>${sanitizeText(item.year)}</td>
+            <td style="max-width:200px;overflow:hidden;
+                text-overflow:ellipsis;white-space:nowrap;"
+                title="${sanitizeText(item.description)}">
+                ${sanitizeText(item.description)}
+            </td>
+            <td><span class="badge badge-income">
+                ${sanitizeText(item.category)}
+            </span></td>
+            <td class="amount-positive">${formatINR(item.amount)}</td>
+            <td>
+                <button class="btn-edit"
+                    data-index="${index}"
+                    title="Edit">✏️</button>
+                <button class="btn-delete"
+                    onclick="deleteEntry('income','${sanitizeText(item.id)}')"
+                    title="Delete">🗑️</button>
+            </td>
+        </tr>`;
     });
 
-    // Total row
-    rows += '<tr class="tfoot-row">' +
-        '<td colspan="5" style="text-align:right; font-weight:700;">Total (' + data.length + ' entries):</td>' +
-        '<td class="amount-positive">' + formatINR(totalAmount) + '</td>' +
-        '<td></td>' +
-    '</tr>';
+    rows += `<tr class="tfoot-row">
+        <td colspan="5" style="text-align:right;font-weight:700;">
+            Total (${data.length} entries):
+        </td>
+        <td class="amount-positive">${formatINR(totalAmount)}</td>
+        <td></td>
+    </tr>`;
 
     tbody.innerHTML = rows;
 
-    // Attach edit button click events
-    const editButtons = tbody.querySelectorAll('.btn-edit');
-    editButtons.forEach(function(btn) {
+    tbody.querySelectorAll('.btn-edit').forEach(btn => {
         btn.addEventListener('click', function() {
-            const idx = parseInt(btn.getAttribute('data-index'));
-            editIncomeRecord(data[idx]);
+            editIncomeRecord(data[parseInt(btn.getAttribute('data-index'))]);
         });
     });
 }
 
-// RENDER EXPENSE TABLE (Full List)
 // ============================================================
-// ============================================================
-// FIXED RENDER EXPENSE TABLE (CORRECT VARIABLE ORDER)
+// RENDER EXPENSE TABLE
 // ============================================================
 function renderExpenseTable() {
-    const tbody = document.getElementById('expenseTableBody');
-    const filterEl = document.getElementById('expenseListYearFilter');
+    const tbody      = document.getElementById('expenseTableBody');
+    const filterEl   = document.getElementById('expenseListYearFilter');
     const yearFilter = filterEl ? filterEl.value : 'all';
-
     if (!tbody) return;
 
     let data = [...allExpenseData];
-
-    // Filter by year
     if (yearFilter !== 'all') {
         data = data.filter(item => parseInt(item.year) === parseInt(yearFilter));
     }
 
-    // UPDATE RECORD COUNT BADGE (Safely after yearFilter & data are defined)
-    const expenseBadge = document.getElementById('expenseRecordCountBadge');
-    if (expenseBadge) {
-        const totalCount = yearFilter === 'all' ? allExpenseData.length : data.length;
-        expenseBadge.textContent = `${totalCount} ${totalCount === 1 ? 'Record' : 'Records'}`;
+    const badge = document.getElementById('expenseRecordCountBadge');
+    if (badge) {
+        const count = yearFilter === 'all' ? allExpenseData.length : data.length;
+        badge.textContent = `${count} ${count === 1 ? 'Record' : 'Records'}`;
     }
 
-    // Sort by date descending
     data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (data.length === 0) {
@@ -2737,128 +2428,183 @@ function renderExpenseTable() {
             <div class="empty-state">
                 <span class="empty-state-icon">💸</span>
                 <h3>No Expense Records</h3>
-                <p>${yearFilter !== 'all' ? `No expenses found for ${yearFilter}.` : 'Add your first expense entry.'}</p>
+                <p>${yearFilter !== 'all'
+                    ? `No expenses for ${yearFilter}.`
+                    : 'Add your first expense.'}</p>
             </div></td></tr>`;
         return;
     }
 
     let totalAmount = 0;
-    let rows = '';
+    let rows        = '';
 
     data.forEach((item, index) => {
         totalAmount += parseFloat(item.amount) || 0;
-        rows += '<tr>' +
-            '<td>' + (index + 1) + '</td>' +
-            '<td>' + sanitizeText(formatDate(item.date)) + '</td>' +
-            '<td>' + sanitizeText(item.year) + '</td>' +
-            '<td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + sanitizeText(item.description) + '">' +
-                sanitizeText(item.description) +
-            '</td>' +
-            '<td><span class="badge badge-expense">' + sanitizeText(item.category) + '</span></td>' +
-            '<td class="amount-negative">' + formatINR(item.amount) + '</td>' +
-            '<td>' +
-                '<button class="btn-edit" data-index="' + index + '" title="Edit this entry">✏️</button>' +
-                '<button class="btn-delete" onclick="deleteEntry(\'expense\',\'' + sanitizeText(item.id) + '\',' + index + ')" title="Delete this entry">🗑️</button>' +
-            '</td>' +
-        '</tr>';
+        rows += `<tr>
+            <td>${index + 1}</td>
+            <td>${sanitizeText(formatDate(item.date))}</td>
+            <td>${sanitizeText(item.year)}</td>
+            <td style="max-width:200px;overflow:hidden;
+                text-overflow:ellipsis;white-space:nowrap;"
+                title="${sanitizeText(item.description)}">
+                ${sanitizeText(item.description)}
+            </td>
+            <td><span class="badge badge-expense">
+                ${sanitizeText(item.category)}
+            </span></td>
+            <td class="amount-negative">${formatINR(item.amount)}</td>
+            <td>
+                <button class="btn-edit"
+                    data-index="${index}"
+                    title="Edit">✏️</button>
+                <button class="btn-delete"
+                    onclick="deleteEntry('expense','${sanitizeText(item.id)}')"
+                    title="Delete">🗑️</button>
+            </td>
+        </tr>`;
     });
 
-    // Total row
-    rows += '<tr class="tfoot-row">' +
-        '<td colspan="5" style="text-align:right; font-weight:700;">Total (' + data.length + ' entries):</td>' +
-        '<td class="amount-negative">' + formatINR(totalAmount) + '</td>' +
-        '<td></td>' +
-    '</tr>';
+    rows += `<tr class="tfoot-row">
+        <td colspan="5" style="text-align:right;font-weight:700;">
+            Total (${data.length} entries):
+        </td>
+        <td class="amount-negative">${formatINR(totalAmount)}</td>
+        <td></td>
+    </tr>`;
 
     tbody.innerHTML = rows;
 
-    // Attach edit button click events
-    const editButtons = tbody.querySelectorAll('.btn-edit');
-    editButtons.forEach(function(btn) {
+    tbody.querySelectorAll('.btn-edit').forEach(btn => {
         btn.addEventListener('click', function() {
-            const idx = parseInt(btn.getAttribute('data-index'));
-            editExpenseRecord(data[idx]);
+            editExpenseRecord(data[parseInt(btn.getAttribute('data-index'))]);
         });
     });
 }
 
+// ============================================================
+// SYNC YEAR FILTERS FROM DATA
+// ============================================================
+function syncYearFiltersFromData() {
+    const yearSet = new Set();
+    allIncomeData.forEach(i  => { if (i.year) yearSet.add(parseInt(i.year)); });
+    allExpenseData.forEach(i => { if (i.year) yearSet.add(parseInt(i.year)); });
 
+    for (let y = START_YEAR; y <= END_YEAR; y++) yearSet.add(y);
 
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y <= currentYear + 2; y++) yearSet.add(y);
 
+    const sortedYears = [...yearSet].sort((a, b) => a - b);
 
+    const filterIds = [
+        'dashboardYearFilter', 'incomeListYearFilter',
+        'expenseListYearFilter', 'reportYearFilter'
+    ];
+
+    filterIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const currentVal = el.value;
+        while (el.options.length > 1) el.remove(1);
+        sortedYears.forEach(y => {
+            const opt       = document.createElement('option');
+            opt.value       = y;
+            opt.textContent = y;
+            el.appendChild(opt);
+        });
+        el.value = currentVal;
+        if (!el.value) el.value = 'all';
+    });
+
+    const formIds = ['incomeYear', 'expenseYear'];
+    formIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const currentVal = el.value;
+        el.innerHTML = '';
+        sortedYears.forEach(y => {
+            const opt       = document.createElement('option');
+            opt.value       = y;
+            opt.textContent = y;
+            el.appendChild(opt);
+        });
+        if (currentVal && el.querySelector(`option[value="${currentVal}"]`)) {
+            el.value = currentVal;
+        } else {
+            el.value = currentYear;
+        }
+    });
+}
 // ============================================================
 // GENERATE REPORTS
 // ============================================================
 function generateReport() {
     const selectedYear = document.getElementById('reportYearFilter').value;
 
-    // ---- Year Summary Box ----
     let yearIncomeData  = allIncomeData;
     let yearExpenseData = allExpenseData;
 
     if (selectedYear !== 'all') {
-        const yr = parseInt(selectedYear);
-        yearIncomeData  = allIncomeData.filter(i => parseInt(i.year) === yr);
+        const yr        = parseInt(selectedYear);
+        yearIncomeData  = allIncomeData.filter(i  => parseInt(i.year) === yr);
         yearExpenseData = allExpenseData.filter(i => parseInt(i.year) === yr);
     }
 
-    const yearTotalIncome  = yearIncomeData.reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
-    const yearTotalExpense = yearExpenseData.reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
+    const yearTotalIncome  = yearIncomeData.reduce((s, i)  => s + (parseFloat(i.amount) || 0), 0);
+    const yearTotalExpense = yearExpenseData.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
     const yearBalance      = yearTotalIncome - yearTotalExpense;
 
-    // Update year summary box
-    document.getElementById('yearSummaryTitle').textContent =
-        selectedYear === 'all' ? '📊 All Years Summary' : `📊 ${selectedYear} Summary`;
-
-    document.getElementById('reportYearIncome').textContent  = formatINR(yearTotalIncome);
-    document.getElementById('reportYearExpense').textContent = formatINR(yearTotalExpense);
+    safeText('yearSummaryTitle',
+        selectedYear === 'all' ? '📊 All Years Summary' : `📊 ${selectedYear} Summary`);
+    safeText('reportYearIncome',  formatINR(yearTotalIncome));
+    safeText('reportYearExpense', formatINR(yearTotalExpense));
 
     const balEl = document.getElementById('reportYearBalance');
-    balEl.textContent  = formatINR(yearBalance);
-    balEl.className    = 'year-summary-item-value';
-    if (yearBalance < 0) balEl.classList.add('negative');
+    if (balEl) {
+        balEl.textContent = formatINR(yearBalance);
+        balEl.className   = 'year-summary-item-value';
+        if (yearBalance < 0) balEl.classList.add('negative');
+    }
 
-    // Update monthly report title
-    document.getElementById('monthlyReportTitle').textContent =
+    safeText('monthlyReportTitle',
         selectedYear === 'all'
             ? '📅 Monthly Report — All Years'
-            : `📅 Monthly Report — ${selectedYear}`;
+            : `📅 Monthly Report — ${selectedYear}`);
 
-    // ---- Monthly Report Table ----
     generateMonthlyTable(selectedYear, yearIncomeData, yearExpenseData);
 
-    // ---- Final Overall Summary (always all years) ----
-    const overallIncome  = allIncomeData.reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
-    const overallExpense = allExpenseData.reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
+    // Final overall — always all years
+    const overallIncome  = allIncomeData.reduce((s, i)  => s + (parseFloat(i.amount) || 0), 0);
+    const overallExpense = allExpenseData.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
     const overallBalance = overallIncome - overallExpense;
 
-    document.getElementById('finalOverallIncome').textContent  = formatINR(overallIncome);
-    document.getElementById('finalOverallExpense').textContent = formatINR(overallExpense);
+    safeText('finalOverallIncome',  formatINR(overallIncome));
+    safeText('finalOverallExpense', formatINR(overallExpense));
 
     const finalBalEl = document.getElementById('finalOverallBalance');
-    finalBalEl.textContent = formatINR(overallBalance);
-    finalBalEl.className   = 'final-summary-item-value';
-    if (overallBalance < 0) finalBalEl.classList.add('negative');
-    // Auto-refresh category report if open
-generateCategoryReport();
-        // Refresh category year dropdown when report generates
+    if (finalBalEl) {
+        finalBalEl.textContent = formatINR(overallBalance);
+        finalBalEl.className   = 'final-summary-item-value';
+        if (overallBalance < 0) finalBalEl.classList.add('negative');
+    }
+
     populateCategoryYearDropdown();
-
-
+    generateCategoryReport();
 }
 
-// ---- Monthly Table Generator ----
+// ============================================================
+// MONTHLY TABLE
+// ============================================================
 function generateMonthlyTable(selectedYear, incomeData, expenseData) {
     const tbody = document.getElementById('monthlyReportBody');
     const tfoot = document.getElementById('monthlyReportFoot');
     if (!tbody) return;
 
-    let rows = '';
+    let rows         = '';
     let grandIncome  = 0;
     let grandExpense = 0;
 
     if (selectedYear === 'all') {
-        // Group by Year + Month
         const yearSet = new Set();
         allIncomeData.forEach(i  => yearSet.add(parseInt(i.year)));
         allExpenseData.forEach(i => yearSet.add(parseInt(i.year)));
@@ -2870,7 +2616,7 @@ function generateMonthlyTable(selectedYear, incomeData, expenseData) {
                     <h3>No Data Available</h3>
                     <p>Add income or expense entries to see reports.</p>
                 </div></td></tr>`;
-            tfoot.innerHTML = '';
+            if (tfoot) tfoot.innerHTML = '';
             return;
         }
 
@@ -2880,50 +2626,43 @@ function generateMonthlyTable(selectedYear, incomeData, expenseData) {
             const yrIncome  = allIncomeData.filter(i  => parseInt(i.year) === yr);
             const yrExpense = allExpenseData.filter(i => parseInt(i.year) === yr);
 
-            // Year header row
-            rows += `
-                <tr style="background:#f1f5f9;">
-                    <td colspan="4" style="font-weight:700; color:var(--primary-dark);
-                        padding:10px 16px; font-size:13px; letter-spacing:0.5px;">
-                        📅 ${yr}
-                    </td>
-                </tr>`;
+            rows += `<tr style="background:#f1f5f9;">
+                <td colspan="4" style="font-weight:700;color:#0b2545;
+                    padding:10px 16px;font-size:13px;letter-spacing:0.5px;">
+                    📅 ${yr}
+                </td></tr>`;
 
             MONTHS.forEach((monthName, idx) => {
                 const mNum = idx + 1;
 
-                const mIncome  = yrIncome.filter(i =>
+                const mIncome = yrIncome.filter(i =>
                     (parseInt(i.monthNum) === mNum) ||
                     (i.month && i.month.toLowerCase() === monthName.toLowerCase())
-                ).reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
+                ).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
 
-                                const mExpense = yrExpense.filter(i =>
+                const mExpense = yrExpense.filter(i =>
                     (parseInt(i.monthNum) === mNum) ||
                     (i.month && i.month.toLowerCase() === monthName.toLowerCase())
-                ).reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
+                ).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
 
-                const mBalance = mIncome - mExpense;
-                grandIncome  += mIncome;
-                grandExpense += mExpense;
+                const mBalance  = mIncome - mExpense;
+                grandIncome    += mIncome;
+                grandExpense   += mExpense;
 
                 const balClass = mBalance > 0 ? 'amount-positive'
                                : mBalance < 0 ? 'amount-negative'
                                : 'amount-neutral';
 
-                rows += `
-                    <tr>
-                        <td style="padding-left:28px;">${monthName}</td>
-                        <td class="amount-positive">${formatINR(mIncome)}</td>
-                        <td class="amount-negative">${formatINR(mExpense)}</td>
-                        <td class="${balClass}">${formatINR(mBalance)}</td>
-                    </tr>`;
+                rows += `<tr>
+                    <td style="padding-left:28px;">${monthName}</td>
+                    <td class="amount-positive">${formatINR(mIncome)}</td>
+                    <td class="amount-negative">${formatINR(mExpense)}</td>
+                    <td class="${balClass}">${formatINR(mBalance)}</td>
+                </tr>`;
             });
         });
 
     } else {
-        // Single year — show all 12 months
-        const yr = parseInt(selectedYear);
-
         if (incomeData.length === 0 && expenseData.length === 0) {
             tbody.innerHTML = `<tr><td colspan="4">
                 <div class="empty-state">
@@ -2931,7 +2670,7 @@ function generateMonthlyTable(selectedYear, incomeData, expenseData) {
                     <h3>No Data for ${selectedYear}</h3>
                     <p>Add income or expense entries for ${selectedYear}.</p>
                 </div></td></tr>`;
-            tfoot.innerHTML = '';
+            if (tfoot) tfoot.innerHTML = '';
             return;
         }
 
@@ -2941,289 +2680,101 @@ function generateMonthlyTable(selectedYear, incomeData, expenseData) {
             const mIncome = incomeData.filter(i =>
                 (parseInt(i.monthNum) === mNum) ||
                 (i.month && i.month.toLowerCase() === monthName.toLowerCase())
-            ).reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
+            ).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
 
             const mExpense = expenseData.filter(i =>
                 (parseInt(i.monthNum) === mNum) ||
                 (i.month && i.month.toLowerCase() === monthName.toLowerCase())
-            ).reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
+            ).reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
 
-            const mBalance = mIncome - mExpense;
-            grandIncome  += mIncome;
-            grandExpense += mExpense;
+            const mBalance  = mIncome - mExpense;
+            grandIncome    += mIncome;
+            grandExpense   += mExpense;
 
             const balClass = mBalance > 0 ? 'amount-positive'
                            : mBalance < 0 ? 'amount-negative'
                            : 'amount-neutral';
 
-            rows += `
-                <tr>
-                    <td>${monthName}</td>
-                    <td class="amount-positive">${formatINR(mIncome)}</td>
-                    <td class="amount-negative">${formatINR(mExpense)}</td>
-                    <td class="${balClass}">${formatINR(mBalance)}</td>
-                </tr>`;
+            rows += `<tr>
+                <td>${monthName}</td>
+                <td class="amount-positive">${formatINR(mIncome)}</td>
+                <td class="amount-negative">${formatINR(mExpense)}</td>
+                <td class="${balClass}">${formatINR(mBalance)}</td>
+            </tr>`;
         });
     }
 
     tbody.innerHTML = rows;
 
-    // Footer total row
     const grandBalance = grandIncome - grandExpense;
     const footBalClass = grandBalance > 0 ? 'amount-positive'
                        : grandBalance < 0 ? 'amount-negative'
                        : 'amount-neutral';
 
-    tfoot.innerHTML = `
-        <tr class="tfoot-row">
+    if (tfoot) {
+        tfoot.innerHTML = `<tr class="tfoot-row">
             <td style="font-weight:700;">Grand Total</td>
             <td class="amount-positive">${formatINR(grandIncome)}</td>
             <td class="amount-negative">${formatINR(grandExpense)}</td>
             <td class="${footBalClass}">${formatINR(grandBalance)}</td>
         </tr>`;
-}
-
-// ============================================================
-// POPULATE YEAR FILTERS FROM ACTUAL DATA
-// ============================================================
-function syncYearFiltersFromData() {
-    const yearSet = new Set();
-    allIncomeData.forEach(i  => { if (i.year) yearSet.add(parseInt(i.year)); });
-    allExpenseData.forEach(i => { if (i.year) yearSet.add(parseInt(i.year)); });
-
-    // Also add years from START_YEAR to END_YEAR
-    for (let y = START_YEAR; y <= END_YEAR; y++) yearSet.add(y);
-
-    // Add current year + 2 future years
-    const currentYear = new Date().getFullYear();
-    for (let y = currentYear; y <= currentYear + 2; y++) yearSet.add(y);
-
-    const sortedYears = [...yearSet].sort((a, b) => a - b);
-
-    const filterIds = [
-        'dashboardYearFilter',
-        'incomeListYearFilter',
-        'expenseListYearFilter',
-        'reportYearFilter'
-    ];
-
-    filterIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-
-        const currentVal = el.value;
-
-        // Keep first "All Years" option
-        while (el.options.length > 1) el.remove(1);
-
-        sortedYears.forEach(y => {
-            const opt = document.createElement('option');
-            opt.value       = y;
-            opt.textContent = y;
-            el.appendChild(opt);
-        });
-
-        // Restore previous selection
-        el.value = currentVal;
-        if (!el.value) el.value = 'all';
-    });
-
-    // Also sync form year dropdowns
-    const formYearIds = ['incomeYear', 'expenseYear'];
-    formYearIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-
-        const currentVal = el.value;
-        el.innerHTML = '';
-
-        sortedYears.forEach(y => {
-            const opt = document.createElement('option');
-            opt.value       = y;
-            opt.textContent = y;
-            el.appendChild(opt);
-        });
-
-        // Restore or set current year
-        if (currentVal && el.querySelector(`option[value="${currentVal}"]`)) {
-            el.value = currentVal;
-        } else {
-            el.value = currentYear;
-        }
-    });
-}
-
-// ============================================================
-// INITIAL APP LOAD
-// ============================================================
-async function initApp() {
-    setLoading(true);
-
-    try {
-        // Populate year dropdowns first
-        populateYearDropdowns();
-        populateCategoryDropdown();
-
-
-        // Set today's date
-        setDefaultDates();
-
-        // Auto-sync year when date changes
-        syncYearFromDate('incomeDate',  'incomeYear');
-        syncYearFromDate('expenseDate', 'expenseYear');
-
-        // Check if API URL is configured
-        if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === '') {
-            setLoading(false);
-            setSyncStatus('error');
-            showToast(
-                '⚠️ Please configure your Google Apps Script URL in the code.',
-                'warning'
-            );
-            // Show warning on dashboard
-            const dashContent = document.getElementById('tab-dashboard');
-            const warningDiv  = document.createElement('div');
-            warningDiv.className = 'alert alert-warning show';
-            warningDiv.style.marginBottom = '20px';
-            warningDiv.innerHTML = `
-                <span>⚠️</span>
-                <span>
-                    <strong>Setup Required:</strong>
-                    Please replace <code>YOUR_APPS_SCRIPT_WEB_APP_URL_HERE</code>
-                    in the JavaScript with your actual Google Apps Script Web App URL.
-                    See setup instructions below.
-                </span>`;
-            dashContent.insertBefore(warningDiv, dashContent.firstChild);
-            return;
-        }
-
-        // Fetch all data from Google Sheets
-        const success = await fetchAllData();
-
-        if (success) {
-            // Sync year filters with actual data
-            syncYearFiltersFromData();
-
-            // Render all UI
-            updateDashboard();
-            renderIncomeTable();
-            renderExpenseTable();
-            generateReport();
-        }
-
-    } catch (err) {
-        console.error('Init error:', err);
-        setSyncStatus('error');
-        showToast('App initialization failed: ' + err.message, 'error');
-    } finally {
-        setLoading(false);
     }
 }
-// ============================================================
-// EDIT INCOME MODAL LOGIC
-// ============================================================
-
-
 
 // ============================================================
-// EDIT INCOME — Load record into the Add Income form itself
+// CATEGORY REPORT
 // ============================================================
-function editIncomeRecord(item) {
-    // Switch to Income tab first
-    switchTab('income');
+const INCOME_CATEGORIES  = [
+    'Salary','Business','Freelance','Bonus',
+    'Interest','Rental','Investment','Other'
+];
+const EXPENSE_CATEGORIES = [
+    'Food','Travel','Shopping','Rent','Bills','Medical',
+    'Education','Entertainment','EMI','Groceries','Fuel','Other'
+];
 
-    // Fill form fields with existing record data
-    document.getElementById('incomeEditId').value      = item.id;
-    document.getElementById('incomeDate').value        = item.date;
-    document.getElementById('incomeDescription').value = item.description;
-    document.getElementById('incomeAmount').value       = item.amount;
-    
-    document.getElementById('incomeCategory').value     = item.category;
-
-    // Set year dropdown
-    const yearEl = document.getElementById('incomeYear');
-    for (let i = 0; i < yearEl.options.length; i++) {
-        if (parseInt(yearEl.options[i].value) === parseInt(item.year)) {
-            yearEl.selectedIndex = i;
-            break;
-        }
-    }
-
-    // Switch UI to "Edit" mode
-    document.getElementById('incomeFormTitle').textContent = '✏️ Edit Income';
-    document.getElementById('addIncomeBtn').textContent    = '💾 Update Income';
-    document.getElementById('cancelIncomeEditBtn').style.display = 'inline-flex';
-
-    // Scroll to form smoothly
-    document.getElementById('incomeForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    showToast('Editing record — update fields and click "Update Income"', 'warning');
-}
-
-
-
-// Start app when DOM is ready 
-    // ============================================================
-// CATEGORY-WISE YEAR-WISE REPORT
-// ============================================================
-
-// Category lists
-const INCOME_CATEGORIES  = ['Salary','Business','Freelance','Bonus','Interest','Rental','Investment','Other'];
-const EXPENSE_CATEGORIES = ['Food','Travel','Shopping','Rent','Bills','Medical','Education','Entertainment','EMI','Groceries','Fuel','Other'];
-    // Populate Year Dropdown from actual data
 function populateCategoryYearDropdown() {
     const yearEl = document.getElementById('categoryReportYear');
     if (!yearEl) return;
-
     const currentVal = yearEl.value;
 
-    // Collect all years from both income and expense data
     const yearSet = new Set();
-    allIncomeData.forEach(function(item)  { if (item.year) yearSet.add(parseInt(item.year)); });
-    allExpenseData.forEach(function(item) { if (item.year) yearSet.add(parseInt(item.year)); });
-
-    // Also add standard year range
+    allIncomeData.forEach(i  => { if (i.year) yearSet.add(parseInt(i.year)); });
+    allExpenseData.forEach(i => { if (i.year) yearSet.add(parseInt(i.year)); });
     for (let y = START_YEAR; y <= END_YEAR; y++) yearSet.add(y);
 
-    const sortedYears = [...yearSet].sort(function(a, b) { return a - b; });
+    const sortedYears = [...yearSet].sort((a, b) => a - b);
+    yearEl.innerHTML  = '<option value="all">All Years</option>';
 
-    yearEl.innerHTML = '<option value="all">All Years</option>';
-    sortedYears.forEach(function(yr) {
+    sortedYears.forEach(yr => {
         const opt       = document.createElement('option');
         opt.value       = yr;
         opt.textContent = yr;
         yearEl.appendChild(opt);
     });
 
-    // Restore previous selection
     if (currentVal) yearEl.value = currentVal;
     if (!yearEl.value) yearEl.value = 'all';
 }
 
-
-// Populate Category Dropdown based on Type
 function populateCategoryDropdown() {
     const type     = document.getElementById('categoryReportType').value;
     const selectEl = document.getElementById('categoryReportSelect');
     if (!selectEl) return;
 
     const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-
-    // Save current selected value
     const currentVal = selectEl.value;
 
     selectEl.innerHTML = '<option value="">-- Select Category --</option>';
-    categories.forEach(function(cat) {
+    categories.forEach(cat => {
         const opt       = document.createElement('option');
         opt.value       = cat;
         opt.textContent = cat;
         selectEl.appendChild(opt);
     });
 
-    // Restore selection if still valid
     if (currentVal) selectEl.value = currentVal;
 
-    // Reset report table
     const tbody = document.getElementById('categoryReportBody');
     const tfoot = document.getElementById('categoryReportFoot');
     if (tbody) tbody.innerHTML = `
@@ -3237,14 +2788,13 @@ function populateCategoryDropdown() {
     if (tfoot) tfoot.innerHTML = '';
 }
 
-// Generate Category Report
 function generateCategoryReport() {
-    const typeEl     = document.getElementById('categoryReportType');
-    const selectEl   = document.getElementById('categoryReportSelect');
-    const yearEl     = document.getElementById('categoryReportYear');
-    const tbody      = document.getElementById('categoryReportBody');
-    const tfoot      = document.getElementById('categoryReportFoot');
-    const titleEl    = document.getElementById('categoryReportTitle');
+    const typeEl   = document.getElementById('categoryReportType');
+    const selectEl = document.getElementById('categoryReportSelect');
+    const yearEl   = document.getElementById('categoryReportYear');
+    const tbody    = document.getElementById('categoryReportBody');
+    const tfoot    = document.getElementById('categoryReportFoot');
+    const titleEl  = document.getElementById('categoryReportTitle');
 
     if (!typeEl || !selectEl || !yearEl || !tbody) return;
 
@@ -3252,10 +2802,7 @@ function generateCategoryReport() {
     const category   = selectEl.value;
     const yearFilter = yearEl.value;
 
-    // Populate year dropdown with latest data
     populateCategoryYearDropdown();
-
-    // Restore year selection after repopulate
     if (yearFilter) yearEl.value = yearFilter;
 
     if (!category) {
@@ -3267,27 +2814,24 @@ function generateCategoryReport() {
                     <p>Choose type and category above to see report.</p>
                 </div>
             </td></tr>`;
-        if (tfoot) tfoot.innerHTML = '';
+        if (tfoot)   tfoot.innerHTML   = '';
         if (titleEl) titleEl.textContent = '📂 Category Report';
         return;
     }
 
-    // Get source data based on type
-    let sourceData = type === 'income' ? allIncomeData : allExpenseData;
+    let sourceData = type === 'income' ? [...allIncomeData] : [...allExpenseData];
 
-    // Filter by category
-    sourceData = sourceData.filter(function(item) {
-        return item.category && item.category.toLowerCase() === category.toLowerCase();
-    });
+    sourceData = sourceData.filter(item =>
+        item.category &&
+        item.category.toLowerCase() === category.toLowerCase()
+    );
 
-    // Filter by year if not "all"
     if (yearFilter !== 'all') {
-        sourceData = sourceData.filter(function(item) {
-            return parseInt(item.year) === parseInt(yearFilter);
-        });
+        sourceData = sourceData.filter(item =>
+            parseInt(item.year) === parseInt(yearFilter)
+        );
     }
 
-    // Update Title
     const typeLabel = type === 'income' ? '💰 Income' : '💸 Expense';
     const yearLabel = yearFilter === 'all' ? 'All Years' : yearFilter;
     if (titleEl) titleEl.textContent = `📂 ${typeLabel} — ${category} — ${yearLabel}`;
@@ -3298,7 +2842,7 @@ function generateCategoryReport() {
                 <div class="empty-state">
                     <span class="empty-state-icon">📂</span>
                     <h3>No Records Found</h3>
-                    <p>No ${type} records found for "${category}" in ${yearLabel}.</p>
+                    <p>No ${type} records for "${category}" in ${yearLabel}.</p>
                 </div>
             </td></tr>`;
         if (tfoot) tfoot.innerHTML = '';
@@ -3307,50 +2851,51 @@ function generateCategoryReport() {
 
     const isIncome = type === 'income';
 
-    // ---- If "All Years" selected: Group by Year ----
     if (yearFilter === 'all') {
         const yearMap = {};
-        sourceData.forEach(function(item) {
+        sourceData.forEach(item => {
             const yr = parseInt(item.year) || 0;
             if (!yearMap[yr]) yearMap[yr] = { total: 0, count: 0 };
             yearMap[yr].total += parseFloat(item.amount) || 0;
             yearMap[yr].count += 1;
         });
 
-        const sortedYears = Object.keys(yearMap).sort(function(a, b) { return a - b; });
-
-        let rows = '';
+        const sortedYears = Object.keys(yearMap).sort((a, b) => a - b);
+        let rows       = '';
         let grandTotal = 0;
         let grandCount = 0;
 
-        sortedYears.forEach(function(yr) {
+        sortedYears.forEach(yr => {
             const d        = yearMap[yr];
             grandTotal    += d.total;
             grandCount    += d.count;
             const amtClass = isIncome ? 'amount-positive' : 'amount-negative';
-
-            rows += '<tr>' +
-                '<td style="font-weight:700; color:#0b2545;">' + yr + '</td>' +
-                '<td class="' + amtClass + '">' + formatINR(d.total) + '</td>' +
-                '<td style="color:#64748b; font-weight:600;">' + d.count + ' record' + (d.count > 1 ? 's' : '') + '</td>' +
-            '</tr>';
+            rows += `<tr>
+                <td style="font-weight:700;color:#0b2545;">${yr}</td>
+                <td class="${amtClass}">${formatINR(d.total)}</td>
+                <td style="color:#64748b;font-weight:600;">
+                    ${d.count} record${d.count > 1 ? 's' : ''}
+                </td>
+            </tr>`;
         });
 
         tbody.innerHTML = rows;
 
-        const footAmtClass = isIncome ? 'amount-positive' : 'amount-negative';
-        if (tfoot) tfoot.innerHTML = '<tr class="tfoot-row">' +
-            '<td style="font-weight:800; color:#0b2545 !important;">Grand Total</td>' +
-            '<td class="' + footAmtClass + '">' + formatINR(grandTotal) + '</td>' +
-            '<td style="font-weight:700;">' + grandCount + ' record' + (grandCount > 1 ? 's' : '') + '</td>' +
-        '</tr>';
+        const footClass = isIncome ? 'amount-positive' : 'amount-negative';
+        if (tfoot) tfoot.innerHTML = `
+            <tr class="tfoot-row">
+                <td style="font-weight:800;color:#0b2545;">Grand Total</td>
+                <td class="${footClass}">${formatINR(grandTotal)}</td>
+                <td style="font-weight:700;">
+                    ${grandCount} record${grandCount > 1 ? 's' : ''}
+                </td>
+            </tr>`;
 
     } else {
-        // ---- Specific Year selected: Group by Month ----
         const monthMap = {};
-        MONTHS.forEach(function(m) { monthMap[m] = { total: 0, count: 0 }; });
+        MONTHS.forEach(m => { monthMap[m] = { total: 0, count: 0 }; });
 
-        sourceData.forEach(function(item) {
+        sourceData.forEach(item => {
             const mNum  = parseInt(item.monthNum) || getMonthFromDate(item.date);
             const mName = MONTHS[mNum - 1];
             if (mName) {
@@ -3359,22 +2904,26 @@ function generateCategoryReport() {
             }
         });
 
-        let rows = '';
+        let rows       = '';
         let grandTotal = 0;
         let grandCount = 0;
 
-        MONTHS.forEach(function(monthName) {
+        MONTHS.forEach(monthName => {
             const d = monthMap[monthName];
-            if (d.count === 0) return; // Skip empty months
-            grandTotal += d.total;
-            grandCount += d.count;
+            if (d.count === 0) return;
+            grandTotal    += d.total;
+            grandCount    += d.count;
             const amtClass = isIncome ? 'amount-positive' : 'amount-negative';
-
-            rows += '<tr>' +
-                '<td style="font-weight:700; color:#0b2545;">' + monthName + ' ' + yearFilter + '</td>' +
-                '<td class="' + amtClass + '">' + formatINR(d.total) + '</td>' +
-                '<td style="color:#64748b; font-weight:600;">' + d.count + ' record' + (d.count > 1 ? 's' : '') + '</td>' +
-            '</tr>';
+            rows +=
+            `<tr>
+                <td style="font-weight:700;color:#0b2545;">
+                    ${monthName} ${yearFilter}
+                </td>
+                <td class="${amtClass}">${formatINR(d.total)}</td>
+                <td style="color:#64748b;font-weight:600;">
+                    ${d.count} record${d.count > 1 ? 's' : ''}
+                </td>
+            </tr>`;
         });
 
         if (grandCount === 0) {
@@ -3392,96 +2941,103 @@ function generateCategoryReport() {
 
         tbody.innerHTML = rows;
 
-        const footAmtClass = isIncome ? 'amount-positive' : 'amount-negative';
-        if (tfoot) tfoot.innerHTML = '<tr class="tfoot-row">' +
-            '<td style="font-weight:800; color:#0b2545 !important;">Year Total — ' + yearFilter + '</td>' +
-            '<td class="' + footAmtClass + '">' + formatINR(grandTotal) + '</td>' +
-            '<td style="font-weight:700;">' + grandCount + ' record' + (grandCount > 1 ? 's' : '') + '</td>' +
-        '</tr>';
+        const footClass = isIncome ? 'amount-positive' : 'amount-negative';
+        if (tfoot) tfoot.innerHTML = `
+            <tr class="tfoot-row">
+                <td style="font-weight:800;color:#0b2545;">
+                    Year Total — ${yearFilter}
+                </td>
+                <td class="${footClass}">${formatINR(grandTotal)}</td>
+                <td style="font-weight:700;">
+                    ${grandCount} record${grandCount > 1 ? 's' : ''}
+                </td>
+            </tr>`;
     }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    const loggedIn = checkLoginStatus();
-    if (loggedIn) {
-        // ============================================================
-// EDIT EXPENSE — Load record into the Add Expense form itself
 // ============================================================
-function editExpenseRecord(item) {
-    // Switch to Expense tab first
-    switchTab('expense');
-
-    // Fill form fields with existing record data
-    document.getElementById('expenseEditId').value      = item.id;
-    document.getElementById('expenseDate').value        = item.date;
-    document.getElementById('expenseDescription').value = item.description;
-    document.getElementById('expenseAmount').value      = item.amount;
-    document.getElementById('expenseCategory').value    = item.category;
-
-    // Set year dropdown
-    const yearEl = document.getElementById('expenseYear');
-    for (let i = 0; i < yearEl.options.length; i++) {
-        if (parseInt(yearEl.options[i].value) === parseInt(item.year)) {
-            yearEl.selectedIndex = i;
-            break;
-        }
-    }
-
-    // Switch UI to "Edit" mode
-    document.getElementById('expenseFormTitle').textContent = '✏️ Edit Expense';
-    document.getElementById('addExpenseBtn').textContent    = '💾 Update Expense';
-    document.getElementById('cancelExpenseEditBtn').style.display = 'inline-flex';
-
-    // Scroll to form smoothly
-    document.getElementById('expenseForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-    showToast('Editing record — update fields and click "Update Expense"', 'warning');
-}
-
-        initApp();
-    }
-    // अगर logged in नहीं है, तो सिर्फ login form दिखेगा
-    // initApp() तब चलेगा जब handleLogin() में login successful होगा
-});
-// Toggle Show/Hide Records Table
-// Toggle Show/Hide Records Table (Income, Expense & Reports)
+// TOGGLE SHOW/HIDE RECORDS
+// ============================================================
 function toggleRecords(type) {
     if (type === 'income') {
         const container = document.getElementById('incomeTableContainer');
-        const btn = document.getElementById('toggleIncomeRecordsBtn');
+        const btn       = document.getElementById('toggleIncomeRecordsBtn');
         if (container.style.display === 'none') {
             container.style.display = 'block';
-            if (btn) btn.innerHTML = '🙈 Hide Records';
+            if (btn) btn.innerHTML  = '🙈 Hide Records';
         } else {
             container.style.display = 'none';
-            if (btn) btn.innerHTML = '👁️ Show Records';
+            if (btn) btn.innerHTML  = '👁️ Show Records';
         }
+
     } else if (type === 'expense') {
         const container = document.getElementById('expenseTableContainer');
-        const btn = document.getElementById('toggleExpenseRecordsBtn');
+        const btn       = document.getElementById('toggleExpenseRecordsBtn');
         if (container.style.display === 'none') {
             container.style.display = 'block';
-            if (btn) btn.innerHTML = '🙈 Hide Records';
+            if (btn) btn.innerHTML  = '🙈 Hide Records';
         } else {
             container.style.display = 'none';
-            if (btn) btn.innerHTML = '👁️ Show Records';
+            if (btn) btn.innerHTML  = '👁️ Show Records';
         }
+
     } else if (type === 'report') {
         const container = document.getElementById('monthlyReportContainer');
-        const btn = document.getElementById('toggleReportRecordsBtn');
+        const btn       = document.getElementById('toggleReportRecordsBtn');
         if (container.style.display === 'none') {
             container.style.display = 'block';
-            if (btn) btn.innerHTML = '🙈 Hide Records';
+            if (btn) btn.innerHTML  = '🙈 Hide Records';
         } else {
             container.style.display = 'none';
-            if (btn) btn.innerHTML = '👁️ Show Records';
+            if (btn) btn.innerHTML  = '👁️ Show Records';
         }
     }
 }
 
+// ============================================================
+// INIT APP
+// ============================================================
+async function initApp() {
+    setLoading(true);
+
+    try {
+        populateYearDropdowns();
+        populateCategoryDropdown();
+        setDefaultDates();
+        syncYearFromDate('incomeDate',  'incomeYear');
+        syncYearFromDate('expenseDate', 'expenseYear');
+
+        // Fetch once on login — cached for 5 minutes
+        const success = await fetchAllData();
+
+        if (success) {
+            syncYearFiltersFromData();
+            updateDashboard();
+            renderIncomeTable();
+            renderExpenseTable();
+            generateReport();
+        }
+
+    } catch (err) {
+        console.error('Init error:', err);
+        setSyncStatus('error');
+        showToast('App init failed: ' + err.message, 'error');
+    } finally {
+        setLoading(false);
+    }
+}
+
+// ============================================================
+// DOM READY
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const loggedIn = checkLoginStatus();
+    if (loggedIn) initApp();
+});
 
 
 </script>
+
 </body>
 </html>
 
