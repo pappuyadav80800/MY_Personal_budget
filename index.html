@@ -2718,36 +2718,58 @@ function generateReport() {
         yearExpenseData = allExpenseData.filter(i => parseInt(i.year) === yr);
     }
 
-    
+    const yearTotalIncome  = yearIncomeData.reduce(
+        (s, i) => s + (parseFloat(i.amount) || 0), 0
+    );
+    const yearTotalExpense = yearExpenseData.reduce(
+        (s, i) => s + (parseFloat(i.amount) || 0), 0
+    );
+    const yearBalance = yearTotalIncome - yearTotalExpense;
 
+    // ✅ Summary Title
+    safeText('yearSummaryTitle',
+        selectedYear === 'all'
+            ? '📊 All Years Summary'
+            : `📊 ${selectedYear} Summary`
+    );
+
+    // ✅ Summary Cards — Income
+    const incomeEl = document.getElementById('reportYearIncome');
+    if (incomeEl) {
+        incomeEl.textContent = formatINR(yearTotalIncome);
+    }
+
+    // ✅ Summary Cards — Expense
+    const expenseEl = document.getElementById('reportYearExpense');
+    if (expenseEl) {
+        expenseEl.textContent = formatINR(yearTotalExpense);
+    }
+
+    // ✅ Summary Cards — Balance
+    const balEl = document.getElementById('reportYearBalance');
+    if (balEl) {
+        balEl.textContent = formatINR(yearBalance);
+        balEl.className   = 'year-summary-item-value';
+        if (yearBalance < 0) balEl.classList.add('negative');
+    }
+
+    // ✅ Monthly Report Title
     safeText('monthlyReportTitle',
         selectedYear === 'all'
             ? '📅 Monthly Report — All Years'
-            : `📅 Monthly Report — ${selectedYear}`);
+            : `📅 Monthly Report — ${selectedYear}`
+    );
 
+    // ✅ Monthly Table
     generateMonthlyTable(selectedYear, yearIncomeData, yearExpenseData);
 
-    // Final overall — always all years
-    const overallIncome  = allIncomeData.reduce((s, i)  => s + (parseFloat(i.amount) || 0), 0);
-    const overallExpense = allExpenseData.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
-    const overallBalance = overallIncome - overallExpense;
-
-    safeText('finalOverallIncome',  formatINR(overallIncome));
-    safeText('finalOverallExpense', formatINR(overallExpense));
-
-    const finalBalEl = document.getElementById('finalOverallBalance');
-    if (finalBalEl) {
-        finalBalEl.textContent = formatINR(overallBalance);
-        finalBalEl.className   = 'final-summary-item-value';
-        if (overallBalance < 0) finalBalEl.classList.add('negative');
-    }
-
+    // ✅ Month-Year Filter refresh
     populateCategoryYearDropdown();
     generateCategoryReport();
     populateMonthYearFilterDropdown();
-generateMonthYearReport();
-
+    generateMonthYearReport();
 }
+
 
 // ============================================================
 // MONTHLY TABLE
