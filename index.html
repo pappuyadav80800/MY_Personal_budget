@@ -1074,6 +1074,10 @@
             <span id="incomeRecordCountBadge" style="background:#f1f5f9; color:#0b2545; font-size:12px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #cbd5e1;">
     0 Records
 </span>
+<span id="incomeTotalAmountBadge" style="background:#133863; color:#fbbf24; font-size:12px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #0b2545;">
+    Total: ₹0
+</span>
+
 
             <select class="filter-select" id="incomeListYearFilter" onchange="renderIncomeTable()" style="min-width:110px;">
                 <option value="all">All Years</option>
@@ -1204,9 +1208,13 @@
             <button class="btn btn-primary btn-sm" id="toggleExpenseRecordsBtn" onclick="toggleRecords('expense')" style="background:#133863; color:#fff; border:none; padding:6px 14px; border-radius:20px; font-weight:700; cursor:pointer;">
                 👁️ Show Records
             </button>
-            <span id="expenseRecordCountBadge" style="background:#f1f5f9; color:#0b2545; font-size:12px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #cbd5e1;">
+           <span id="expenseRecordCountBadge" style="background:#f1f5f9; color:#0b2545; font-size:12px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #cbd5e1;">
     0 Records
 </span>
+<span id="expenseTotalAmountBadge" style="background:#991b1b; color:#fbbf24; font-size:12px; font-weight:800; padding:4px 10px; border-radius:12px; border:1px solid #7f1d1d;">
+    Total: ₹0
+</span>
+
 
             <select class="filter-select" id="expenseListYearFilter" onchange="renderExpenseTable()" style="min-width:110px;">
                 <option value="all">All Years</option>
@@ -2340,6 +2348,15 @@ function renderIncomeTable() {
         const count = yearFilter === 'all' ? allIncomeData.length : data.length;
         badge.textContent = `${count} ${count === 1 ? 'Record' : 'Records'}`;
     }
+    // Total amount badge — always all records
+const incomeTotalBadge = document.getElementById('incomeTotalAmountBadge');
+if (incomeTotalBadge) {
+    const totalAll = allIncomeData.reduce(
+        (s, i) => s + (parseFloat(i.amount) || 0), 0
+    );
+    incomeTotalBadge.textContent = `Total: ${formatINR(totalAll)}`;
+}
+
 
     data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -2420,6 +2437,15 @@ function renderExpenseTable() {
         const count = yearFilter === 'all' ? allExpenseData.length : data.length;
         badge.textContent = `${count} ${count === 1 ? 'Record' : 'Records'}`;
     }
+
+    // Total amount badge — always all records
+const expenseTotalBadge = document.getElementById('expenseTotalAmountBadge');
+if (expenseTotalBadge) {
+    const totalAll = allExpenseData.reduce(
+        (s, i) => s + (parseFloat(i.amount) || 0), 0
+    );
+    expenseTotalBadge.textContent = `Total: ${formatINR(totalAll)}`;
+}
 
     data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
