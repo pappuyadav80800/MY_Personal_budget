@@ -1848,42 +1848,57 @@ async function fetchAllData(forceRefresh = false) {
     }
 }
 
-Sub Category 4
+async function refreshAllData() {
+    const btn = document.getElementById('commonRefreshBtn');
 
+    // Button animation
+    if (btn) {
+        btn.disabled      = true;
+        btn.innerHTML     = '⏳ Loading...';
+        btn.style.opacity = '0.7';
+    }
 
+    try {
+        // Force fresh fetch from Google Sheet
+        await fetchAllData(true);
 
+        // Update only current active tab — fast & targeted
+        const activeTab = document.querySelector('.tab-content.active');
+        const tabId     = activeTab ? activeTab.id : '';
 
+        syncYearFiltersFromData();
 
+        if (tabId === 'tab-dashboard') {
+            updateDashboard();
+        } else if (tabId === 'tab-income') {
+            renderIncomeTable();
+            updateDashboard();
+        } else if (tabId === 'tab-expense') {
+            renderExpenseTable();
+            updateDashboard();
+        } else if (tabId === 'tab-reports') {
+            generateReport();
+            updateDashboard();
+        } else {
+            // Fallback — update all
+            updateDashboard();
+            renderIncomeTable();
+            renderExpenseTable();
+            generateReport();
+        }
 
+        showToast('Data refreshed!', 'success');
 
-
-
-
-
-
-
-
-Head Dr Side
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    } catch (err) {
+        showToast('Refresh failed: ' + err.message, 'error');
+    } finally {
+        if (btn) {
+            btn.disabled      = false;
+            btn.innerHTML     = '🔄 Refresh';
+            btn.style.opacity = '1';
+        }
+    }
+}
     // ============================================================
 // SUBMIT INCOME — Optimistic UI + Background Sync
 // ============================================================
