@@ -1806,41 +1806,88 @@ function switchAdminView(viewUser) {
 }
 
 function clearAllTables() {
+    // Clear income table
     const incomeBody = document.getElementById('incomeTableBody');
     if (incomeBody) incomeBody.innerHTML = `<tr><td colspan="7">
         <div class="empty-state">
             <span class="empty-state-icon">💰</span>
-            <h3>Loading...</h3>
+            <h3>No Income Records</h3>
         </div></td></tr>`;
 
+    // Clear expense table
     const expenseBody = document.getElementById('expenseTableBody');
     if (expenseBody) expenseBody.innerHTML = `<tr><td colspan="7">
         <div class="empty-state">
             <span class="empty-state-icon">💸</span>
-            <h3>Loading...</h3>
+            <h3>No Expense Records</h3>
         </div></td></tr>`;
 
+    // Clear recent income on dashboard
     const recentIncome = document.getElementById('recentIncomeTable');
     if (recentIncome) recentIncome.innerHTML = `<tr><td colspan="3">
         <div class="empty-state" style="padding:24px;">
             <span style="font-size:32px;">💰</span>
-            <p>Loading...</p>
+            <p>No income entries yet</p>
         </div></td></tr>`;
 
+    // Clear recent expense on dashboard
     const recentExpense = document.getElementById('recentExpenseTable');
     if (recentExpense) recentExpense.innerHTML = `<tr><td colspan="3">
         <div class="empty-state" style="padding:24px;">
             <span style="font-size:32px;">💸</span>
-            <p>Loading...</p>
+            <p>No expense entries yet</p>
         </div></td></tr>`;
 
-    // Clear summary values
+    // Clear monthly report
+    const monthlyBody = document.getElementById('monthlyReportBody');
+    if (monthlyBody) monthlyBody.innerHTML = `<tr><td colspan="4">
+        <div class="empty-state">
+            <span class="empty-state-icon">📅</span>
+            <h3>No Report Data</h3>
+        </div></td></tr>`;
+
+    const monthlyFoot = document.getElementById('monthlyReportFoot');
+    if (monthlyFoot) monthlyFoot.innerHTML = '';
+
+    // Clear category report
+    const catBody = document.getElementById('categoryReportBody');
+    if (catBody) catBody.innerHTML = `<tr><td colspan="3">
+        <div class="empty-state">
+            <span class="empty-state-icon">📂</span>
+            <h3>Select a Category</h3>
+        </div></td></tr>`;
+
+    const catFoot = document.getElementById('categoryReportFoot');
+    if (catFoot) catFoot.innerHTML = '';
+
+    // Clear all summary values
     safeText('dashTotalIncome',  '₹0');
     safeText('dashTotalExpense', '₹0');
     safeText('dashFinalBalance', '₹0');
     safeText('dashIncomeCount',  '0 entries');
     safeText('dashExpenseCount', '0 entries');
+
+    // Clear badges
+    const incomeBadge  = document.getElementById('incomeRecordCountBadge');
+    const expenseBadge = document.getElementById('expenseRecordCountBadge');
+    const incomeTot    = document.getElementById('incomeTotalAmountBadge');
+    const expenseTot   = document.getElementById('expenseTotalAmountBadge');
+
+    if (incomeBadge)  incomeBadge.textContent  = '0 Records';
+    if (expenseBadge) expenseBadge.textContent  = '0 Records';
+    if (incomeTot)    incomeTot.textContent     = 'Total: ₹0';
+    if (expenseTot)   expenseTot.textContent    = 'Total: ₹0';
+
+    // Clear report summary values
+    safeText('reportYearIncome',  '₹0');
+    safeText('reportYearExpense', '₹0');
+    safeText('reportYearBalance', '₹0');
+    safeText('myfIncome',         '₹0');
+    safeText('myfExpense',        '₹0');
+    safeText('myfBalance',        '₹0');
 }
+
+
 
 function getViewUser() {
     const loggedInRole     = getSessionItem('bm_role');
@@ -1961,7 +2008,32 @@ allExpenseData   = [];
 dataLoaded       = false;
 lastFetchTime    = 0;
 currentAdminView = 'admin';
+
+// Hide all table containers immediately
+const incomeContainer  = document.getElementById('incomeTableContainer');
+const expenseContainer = document.getElementById('expenseTableContainer');
+const monthlyContainer = document.getElementById('monthlyReportContainer');
+const dashSummaryGrid  = document.getElementById('dashSummaryGrid');
+
+if (incomeContainer)  incomeContainer.style.display  = 'none';
+if (expenseContainer) expenseContainer.style.display = 'none';
+if (monthlyContainer) monthlyContainer.style.display = 'none';
+if (dashSummaryGrid)  dashSummaryGrid.style.display  = 'none';
+
+// Reset toggle buttons
+const toggleIncomeBtn  = document.getElementById('toggleIncomeRecordsBtn');
+const toggleExpenseBtn = document.getElementById('toggleExpenseRecordsBtn');
+const toggleReportBtn  = document.getElementById('toggleReportRecordsBtn');
+const toggleDashBtn    = document.getElementById('toggleDashSummaryBtn');
+
+if (toggleIncomeBtn)  toggleIncomeBtn.innerHTML  = '👁️ Show Records';
+if (toggleExpenseBtn) toggleExpenseBtn.innerHTML = '👁️ Show Records';
+if (toggleReportBtn)  toggleReportBtn.innerHTML  = '👁️ Show Records';
+if (toggleDashBtn)    toggleDashBtn.innerHTML    = '👁️ Show Summary';
+
+// Clear all visible data immediately
 clearAllTables();
+
 
 
         try {
