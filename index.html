@@ -809,7 +809,8 @@
                 </div>
             </div>
 
-            <button type="submit" class="login-btn">🔐 Sign In</button>
+            <button type="button" class="login-btn" onclick="handleLogin(event)">🔐 Sign In</button>
+
         </form>
 
         <div class="login-footer">Secured Personal Finance Manager © 2025</div>
@@ -1706,7 +1707,7 @@ const safeSetValue   = safeVal;
 const safeSetDisplay = safeDisp;
 
 // ============================================================
-// MULTI-USER ACCOUNTS CONFIGURATION
+// GLOBAL AUTHENTICATION & LOGIN HANDLER
 // ============================================================
 const USER_ACCOUNTS = {
     'admin': { password: 'admin123', role: 'admin', label: 'Administrator' },
@@ -1744,40 +1745,87 @@ function checkLoginStatus() {
     }
 }
 
-function handleLogin(event) {
-    event.preventDefault();
+// Directly attached to window to guarantee execution
+window.handleLogin = function(event) {
+    if (event && event.preventDefault) {
+        event.preventDefault();
+    }
 
-    const usernameInput = document.getElementById('loginUsername').value.trim().toLowerCase();
-    const passwordInput = document.getElementById('loginPassword').value.trim();
-    const errorBox      = document.getElementById('loginError');
+    const errorBox = document.getElementById('loginError');
+    const errorMsg = document.getElementById('loginErrorMsg');
+
+    const usernameEl = document.getElementById('loginUsername');
+    const passwordEl = document.getElementById('loginPassword');
+
+    const usernameInput = usernameEl ? usernameEl.value.trim().toLowerCase() : '';
+    const passwordInput = passwordEl ? passwordEl.value.trim() : '';
+
+    if (!usernameInput || !passwordInput) {
+        if (errorBox) errorBox.classList.add('show');
+        if (errorMsg) errorMsg.textContent = 'Please enter both username and password.';
+        return false;
+    }
 
     const account = USER_ACCOUNTS[usernameInput];
 
     if (account && account.password === passwordInput) {
+        // 1. Save Session
         sessionStorage.setItem('bm_logged_in', 'true');
         sessionStorage.setItem('bm_username', usernameInput);
         sessionStorage.setItem('bm_role', account.role);
 
-        // Clear previous state on new user login
+        // 2. Hide Login Overlay Immediately
+        if (errorBox) errorBox.classList.remove('show');
+        const overlay = document.getElementById('loginOverlay');
+        if (overlay) overlay.classList.add('hidden');
+
+        updateHeaderUserInfo();
+
+        // 3. Clear Input Fields
+        if (usernameEl) usernameEl.value = '';
+        if (passwordEl) passwordEl.value = '';
+
+        // 4. Initialize Data
         allIncomeData  = [];
         allExpenseData = [];
         dataLoaded     = false;
 
-        if (errorBox) errorBox.classList.remove('show');
-        document.getElementById('loginOverlay').classList.add('hidden');
-        document.getElementById('loginForm').reset();
-
-        updateHeaderUserInfo();
-        initApp();
+        try {
+            if (typeof initApp === 'function') {
+                initApp();
+            }
+        } catch (e) {
+            console.error('Init App Error:', e);
+        }
 
     } else {
-        if (errorBox) {
-            errorBox.classList.add('show');
-            document.getElementById('loginErrorMsg').textContent =
-                'Invalid username or password. Please try again.';
-        }
+        // Invalid details - Keep typed details on screen
+        if (errorBox) errorBox.classList.add('show');
+        if (errorMsg) errorMsg.textContent = 'Invalid username or password. Please try again.';
     }
-}
+
+    return false;
+};
+
+window.handleLogout = function() {
+    if (!confirm('Are you sure you want to logout?')) return;
+
+    sessionStorage.removeItem('bm_logged_in');
+    sessionStorage.removeItem('bm_username');
+    sessionStorage.removeItem('bm_role');
+
+    allIncomeData  = [];
+    allExpenseData = [];
+    dataLoaded     = false;
+
+    const overlay = document.getElementById('loginOverlay');
+    if (overlay) overlay.classList.remove('hidden');
+
+    if (typeof showToast === 'function') {
+        showToast('Logged out successfully', 'success');
+    }
+};
+
 
 function handleLogout() {
     if (!confirm('Are you sure you want to logout?')) return;
