@@ -1680,7 +1680,7 @@ async function processSyncQueue() {
     isProcessingQueue = true;
     const task = syncQueue[0];
 
-    setSyncStatus('syncing', `Syncing (${syncQueue.length})...`);
+    setSyncStatus('ok', 'Connected');
 
     try {
         const response = await callAPI(task.params);
@@ -1689,11 +1689,8 @@ async function processSyncQueue() {
             syncQueue.shift();
             task.resolve(response);
 
-            if (syncQueue.length > 0) {
-                setSyncStatus('syncing', `Syncing (${syncQueue.length})...`);
-            } else {
-                setSyncStatus('ok', 'Connected');
-            }
+           setSyncStatus('ok', 'Connected');
+
         } else {
             throw new Error(response ? response.message : 'Invalid response');
         }
@@ -1708,7 +1705,7 @@ async function processSyncQueue() {
             setSyncStatus('error', 'Sync Delay');
             showToast('Sync delayed — will retry on next action', 'warning');
         } else {
-            setSyncStatus('syncing', `Retrying (${task.retries}/3)...`);
+            setSyncStatus('ok', 'Connected');
             await new Promise(r => setTimeout(r, task.retries * 2000));
         }
     } finally {
@@ -2246,7 +2243,7 @@ async function fetchAllData(forceRefresh = false) {
     }
 
     const activeUser = getActiveUser();
-    setSyncStatus('syncing', 'Loading...');
+    setSyncStatus('ok', 'Connected');
 
     try {
         const response = await callAPI({
@@ -2343,9 +2340,9 @@ async function submitIncome(event) {
     const monthName = MONTHS[monthNum - 1] || '';
 
     if (btn) {
-        btn.disabled    = true;
-        btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
-    }
+    btn.disabled = true;
+}
+
 
     const recordId = isEdit
         ? editId
@@ -2386,10 +2383,11 @@ async function submitIncome(event) {
     renderIncomeTable();
     generateReport();
 
-    if (btn) {
-        btn.disabled    = false;
-        btn.textContent = '➕ Add Income';
-    }
+   if (btn) {
+    btn.disabled    = false;
+    btn.textContent = isEdit ? '💾 Update Income' : '➕ Add Income';
+}
+
 
     const activeUser = getActiveUser();
     try {
@@ -2439,10 +2437,10 @@ async function submitExpense(event) {
     const monthNum  = getMonthFromDate(date);
     const monthName = MONTHS[monthNum - 1] || '';
 
-    if (btn) {
-        btn.disabled    = true;
-        btn.textContent = isEdit ? '⏳ Updating...' : '⏳ Saving...';
-    }
+   if (btn) {
+    btn.disabled = true;
+}
+
 
     const recordId = isEdit
         ? editId
@@ -2483,10 +2481,11 @@ async function submitExpense(event) {
     renderExpenseTable();
     generateReport();
 
-    if (btn) {
-        btn.disabled    = false;
-        btn.textContent = '➕ Add Expense';
-    }
+   if (btn) {
+    btn.disabled    = false;
+    btn.textContent = isEdit ? '💾 Update Expense' : '➕ Add Expense';
+}
+
 
     const activeUser = getActiveUser();
     try {
