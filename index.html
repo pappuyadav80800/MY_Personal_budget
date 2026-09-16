@@ -809,7 +809,9 @@
                 </div>
             </div>
 
-            <button type="button" class="login-btn" onclick="handleLogin(event)">🔐 Sign In</button>
+            <!-- Purana button badal kar yeh karein -->
+<button type="button" class="login-btn" onclick="handleLogin(event)">🔐 Sign In</button>
+
 
         </form>
 
@@ -1709,6 +1711,9 @@ const safeSetDisplay = safeDisp;
 // ============================================================
 // BULLETPROOF LOGIN & AUTHENTICATION HANDLER
 // ============================================================
+// ============================================================
+// BULLETPROOF MULTI-USER AUTHENTICATION HANDLER
+// ============================================================
 const USER_ACCOUNTS = {
     'admin': { password: 'admin123', role: 'admin', label: 'Administrator' },
     'user1': { password: 'user123',  role: 'user',  label: 'User 1' },
@@ -1745,8 +1750,7 @@ function checkLoginStatus() {
     }
 }
 
-function handleLogin(event) {
-    // 1. Prevent native form submission / page reload immediately
+window.handleLogin = function(event) {
     if (event) {
         if (event.preventDefault) event.preventDefault();
         if (event.stopPropagation) event.stopPropagation();
@@ -1769,39 +1773,44 @@ function handleLogin(event) {
     const account = USER_ACCOUNTS[usernameInput];
 
     if (account && account.password === passwordInput) {
-        // 2. Save Session Data
+        // 1. Set Session Immediately
         sessionStorage.setItem('bm_logged_in', 'true');
         sessionStorage.setItem('bm_username', usernameInput);
         sessionStorage.setItem('bm_role', account.role);
 
-        // 3. Immediately Hide Login Overlay & Show Dashboard UI
+        // 2. Hide Login Window Immediately
         if (errorBox) errorBox.classList.remove('show');
         const loginOverlay = document.getElementById('loginOverlay');
         if (loginOverlay) loginOverlay.classList.add('hidden');
 
         updateHeaderUserInfo();
 
-        // 4. Reset Inputs AFTER overlay is hidden
+        // 3. Clear Inputs
         if (usernameEl) usernameEl.value = '';
         if (passwordEl) passwordEl.value = '';
 
-        // 5. Reset local memory & load app data safely
+        // 4. Clear memory store & load app
         allIncomeData  = [];
         allExpenseData = [];
         dataLoaded     = false;
 
-        initApp();
+        try {
+            if (typeof initApp === 'function') initApp();
+        } catch (e) {
+            console.error('Init App Error:', e);
+        }
+
         return false;
 
     } else {
-        // Invalid Login: Show error without clearing typing fields
+        // Invalid details -> Show error without reloading page or clearing inputs
         if (errorBox) errorBox.classList.add('show');
         if (errorMsg) errorMsg.textContent = 'Invalid username or password. Please try again.';
         return false;
     }
-}
+};
 
-function handleLogout() {
+window.handleLogout = function() {
     if (!confirm('Are you sure you want to logout?')) return;
 
     sessionStorage.removeItem('bm_logged_in');
@@ -1815,8 +1824,11 @@ function handleLogout() {
     const overlay = document.getElementById('loginOverlay');
     if (overlay) overlay.classList.remove('hidden');
 
-    showToast('Logged out successfully', 'success');
-}
+    if (typeof showToast === 'function') {
+        showToast('Logged out successfully', 'success');
+    }
+};
+
 
 // ============================================================
 // SAFE & UNBLOCKABLE INIT APP
