@@ -841,29 +841,32 @@
         </div>
        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
 
-    <!-- Admin View Switch Tabs (Only visible to admin) -->
-    <div id="adminViewSwitcher" style="display:none; background:rgba(255,255,255,0.1);
-         border:1px solid rgba(251,191,36,0.4); border-radius:20px;
-         padding:3px; gap:3px; display:none;">
-        <button onclick="switchAdminView('admin')" id="viewBtn-admin"
-            style="padding:4px 12px; border-radius:16px; border:none;
-                   font-size:12px; font-weight:700; cursor:pointer;
-                   background:#fbbf24; color:#0b2545;">
+   <!-- Admin View Dropdown (Only visible to admin) -->
+<div id="adminViewSwitcher" style="display:none;">
+    <select id="adminViewDropdown"
+        onchange="switchAdminView(this.value)"
+        style="padding:5px 12px; border-radius:20px;
+               border:1px solid rgba(251,191,36,0.4);
+               background:rgba(255,255,255,0.15);
+               color:#fbbf24; font-size:12px;
+               font-weight:700; cursor:pointer;
+               outline:none;">
+        <option value="admin"
+            style="background:#0b2545; color:#fbbf24;">
             👑 Admin
-        </button>
-        <button onclick="switchAdminView('user1')" id="viewBtn-user1"
-            style="padding:4px 12px; border-radius:16px; border:none;
-                   font-size:12px; font-weight:700; cursor:pointer;
-                   background:transparent; color:#ffffff;">
+        </option>
+        <option value="user1"
+            style="background:#0b2545; color:#ffffff;">
             👤 User 1
-        </button>
-        <button onclick="switchAdminView('user2')" id="viewBtn-user2"
-            style="padding:4px 12px; border-radius:16px; border:none;
-                   font-size:12px; font-weight:700; cursor:pointer;
-                   background:transparent; color:#ffffff;">
+        </option>
+        <option value="user2"
+            style="background:#0b2545; color:#ffffff;">
             👤 User 2
-        </button>
-    </div>
+        </option>
+    </select>
+</div>
+
+  
 
     <span id="headerUserBadge" style="background:rgba(255,255,255,0.15); border:1px solid rgba(251,191,36,0.4);
                color:#fbbf24; font-size:12px; font-weight:700; padding:4px 10px;
@@ -1759,34 +1762,31 @@ function switchAdminView(viewUser) {
 
     currentAdminView = viewUser;
 
-    // Update button styles
-    ['admin', 'user1', 'user2'].forEach(u => {
-        const btn = document.getElementById('viewBtn-' + u);
-        if (!btn) return;
-        if (u === viewUser) {
-            btn.style.background = '#fbbf24';
-            btn.style.color      = '#0b2545';
-        } else {
-            btn.style.background = 'transparent';
-            btn.style.color      = '#ffffff';
-        }
-    });
+    // Update dropdown value
+    const dropdown = document.getElementById('adminViewDropdown');
+    if (dropdown) dropdown.value = viewUser;
 
     // Update header badge
     const badge = document.getElementById('headerUserBadge');
     if (badge) {
         const labels = {
-            admin: '👑 Admin View',
-            user1: '👤 User 1 View',
-            user2: '👤 User 2 View'
+            admin: '👑 Admin',
+            user1: '👤 User 1',
+            user2: '👤 User 2'
         };
-        badge.textContent = labels[viewUser] || '👑 Admin View';
+        badge.textContent = labels[viewUser] || '👑 Admin';
     }
 
-    // Force fresh fetch for selected view
-    dataLoaded    = false;
-    lastFetchTime = 0;
+    // Immediately clear all data before loading new
+    allIncomeData  = [];
+    allExpenseData = [];
+    dataLoaded     = false;
+    lastFetchTime  = 0;
 
+    // Clear all tables immediately
+    clearAllTables();
+
+    // Load fresh data for selected user
     setLoading(true);
     fetchAllData(true).then(() => {
         syncYearFiltersFromData();
@@ -1795,10 +1795,54 @@ function switchAdminView(viewUser) {
         renderExpenseTable();
         generateReport();
         setLoading(false);
+        showToast(`Switched to ${labels[viewUser]} view`, 'success');
     }).catch(err => {
         setLoading(false);
         showToast('View switch failed: ' + err.message, 'error');
     });
+
+    const labels = {
+        admin: '👑 Admin',
+        user1: '👤 User 1',
+        user2: '👤 User 2'
+    };
+}
+
+function clearAllTables() {
+    const incomeBody = document.getElementById('incomeTableBody');
+    if (incomeBody) incomeBody.innerHTML = `<tr><td colspan="7">
+        <div class="empty-state">
+            <span class="empty-state-icon">💰</span>
+            <h3>Loading...</h3>
+        </div></td></tr>`;
+
+    const expenseBody = document.getElementById('expenseTableBody');
+    if (expenseBody) expenseBody.innerHTML = `<tr><td colspan="7">
+        <div class="empty-state">
+            <span class="empty-state-icon">💸</span>
+            <h3>Loading...</h3>
+        </div></td></tr>`;
+
+    const recentIncome = document.getElementById('recentIncomeTable');
+    if (recentIncome) recentIncome.innerHTML = `<tr><td colspan="3">
+        <div class="empty-state" style="padding:24px;">
+            <span style="font-size:32px;">💰</span>
+            <p>Loading...</p>
+        </div></td></tr>`;
+
+    const recentExpense = document.getElementById('recentExpenseTable');
+    if (recentExpense) recentExpense.innerHTML = `<tr><td colspan="3">
+        <div class="empty-state" style="padding:24px;">
+            <span style="font-size:32px;">💸</span>
+            <p>Loading...</p>
+        </div></td></tr>`;
+
+    // Clear summary values
+    safeText('dashTotalIncome',  '₹0');
+    safeText('dashTotalExpense', '₹0');
+    safeText('dashFinalBalance', '₹0');
+    safeText('dashIncomeCount',  '0 entries');
+    safeText('dashExpenseCount', '0 entries');
 }
 
 function getViewUser() {
@@ -1846,18 +1890,20 @@ function updateHeaderUserInfo() {
     const switcherEl   = document.getElementById('adminViewSwitcher');
 
     if (loggedInRole === 'admin') {
-        // Show switcher tabs for admin
-        if (switcherEl) switcherEl.style.display = 'flex';
-        if (badgeEl)    badgeEl.textContent       = '👑 Admin View';
+        // Show dropdown for admin
+        if (switcherEl) switcherEl.style.display = 'block';
+        // Reset to admin view on fresh login
         currentAdminView = 'admin';
+        const dropdown   = document.getElementById('adminViewDropdown');
+        if (dropdown) dropdown.value = 'admin';
+        if (badgeEl) badgeEl.textContent = '👑 Admin';
     } else {
-        // Hide switcher for normal users
+        // Hide dropdown for normal users
         if (switcherEl) switcherEl.style.display = 'none';
-        if (badgeEl) {
-            badgeEl.textContent = `👤 ${loggedInUser}`;
-        }
+        if (badgeEl) badgeEl.textContent = `👤 ${loggedInUser}`;
     }
 }
+
 
 
 function checkLoginStatus() {
@@ -1910,9 +1956,13 @@ window.handleLogin = function(event) {
         if (usernameEl) usernameEl.value = '';
         if (passwordEl) passwordEl.value = '';
 
-        allIncomeData  = [];
-        allExpenseData = [];
-        dataLoaded     = false;
+        allIncomeData    = [];
+allExpenseData   = [];
+dataLoaded       = false;
+lastFetchTime    = 0;
+currentAdminView = 'admin';
+clearAllTables();
+
 
         try {
             if (typeof initApp === 'function') initApp();
