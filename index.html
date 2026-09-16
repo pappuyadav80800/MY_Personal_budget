@@ -1541,7 +1541,7 @@
 <script>
     
 // ============================================================
-// SAFE SESSION STORAGE (Naya Code - Yahan Paste Karein)
+// SAFE SESSION STORAGE
 // ============================================================
 const _sessionStore = {};
 
@@ -1709,10 +1709,7 @@ const safeSetValue   = safeVal;
 const safeSetDisplay = safeDisp;
 
 // ============================================================
-// BULLETPROOF LOGIN & AUTHENTICATION HANDLER
-// ============================================================
-// ============================================================
-// BULLETPROOF MULTI-USER AUTHENTICATION HANDLER
+// MULTI-USER AUTHENTICATION HANDLER
 // ============================================================
 const USER_ACCOUNTS = {
     'admin': { password: 'admin123', role: 'admin', label: 'Administrator' },
@@ -1722,8 +1719,8 @@ const USER_ACCOUNTS = {
 
 function getActiveUser() {
     return {
-        username: sessionStorage.getItem('bm_username') || 'admin',
-        role:     sessionStorage.getItem('bm_role')     || 'admin'
+        username: getSessionItem('bm_username') || 'admin',
+        role:     getSessionItem('bm_role')     || 'admin'
     };
 }
 
@@ -1737,7 +1734,7 @@ function updateHeaderUserInfo() {
 }
 
 function checkLoginStatus() {
-    const isLoggedIn = sessionStorage.getItem('bm_logged_in') === 'true';
+    const isLoggedIn = getSessionItem('bm_logged_in') === 'true';
     const overlay    = document.getElementById('loginOverlay');
 
     if (isLoggedIn) {
@@ -1773,23 +1770,19 @@ window.handleLogin = function(event) {
     const account = USER_ACCOUNTS[usernameInput];
 
     if (account && account.password === passwordInput) {
-        // 1. Set Session Immediately
-        sessionStorage.setItem('bm_logged_in', 'true');
-        sessionStorage.setItem('bm_username', usernameInput);
-        sessionStorage.setItem('bm_role', account.role);
+        setSessionItem('bm_logged_in', 'true');
+        setSessionItem('bm_username', usernameInput);
+        setSessionItem('bm_role', account.role);
 
-        // 2. Hide Login Window Immediately
         if (errorBox) errorBox.classList.remove('show');
         const loginOverlay = document.getElementById('loginOverlay');
         if (loginOverlay) loginOverlay.classList.add('hidden');
 
         updateHeaderUserInfo();
 
-        // 3. Clear Inputs
         if (usernameEl) usernameEl.value = '';
         if (passwordEl) passwordEl.value = '';
 
-        // 4. Clear memory store & load app
         allIncomeData  = [];
         allExpenseData = [];
         dataLoaded     = false;
@@ -1803,7 +1796,6 @@ window.handleLogin = function(event) {
         return false;
 
     } else {
-        // Invalid details -> Show error without reloading page or clearing inputs
         if (errorBox) errorBox.classList.add('show');
         if (errorMsg) errorMsg.textContent = 'Invalid username or password. Please try again.';
         return false;
@@ -1813,9 +1805,9 @@ window.handleLogin = function(event) {
 window.handleLogout = function() {
     if (!confirm('Are you sure you want to logout?')) return;
 
-    sessionStorage.removeItem('bm_logged_in');
-    sessionStorage.removeItem('bm_username');
-    sessionStorage.removeItem('bm_role');
+    removeSessionItem('bm_logged_in');
+    removeSessionItem('bm_username');
+    removeSessionItem('bm_role');
 
     allIncomeData  = [];
     allExpenseData = [];
@@ -1828,7 +1820,6 @@ window.handleLogout = function() {
         showToast('Logged out successfully', 'success');
     }
 };
-
 
 // ============================================================
 // SAFE & UNBLOCKABLE INIT APP
@@ -1845,7 +1836,6 @@ async function initApp() {
             syncYearFromDate('expenseDate', 'expenseYear');
         }
 
-        // Fetch user-isolated data
         await fetchAllData(true);
 
         if (typeof syncYearFiltersFromData === 'function') syncYearFiltersFromData();
@@ -1859,7 +1849,7 @@ async function initApp() {
         setSyncStatus('error');
         showToast('App init issue: ' + err.message, 'warning');
     } finally {
-        setLoading(false); // Guarantees loading spinner is removed
+        setLoading(false);
     }
 }
 
@@ -2103,9 +2093,8 @@ async function fetchAllData(forceRefresh = false) {
     }
 }
 
-
 // ============================================================
-// SILENT AUTO REFRESH — No UI block, no popup, no spinner
+// SILENT AUTO REFRESH
 // ============================================================
 async function refreshAllData() {
     try {
@@ -2147,8 +2136,7 @@ async function refreshAllData() {
     }
 }
 
-
-    // ============================================================
+// ============================================================
 // SUBMIT INCOME — Optimistic UI + Background Sync
 // ============================================================
 async function submitIncome(event) {
@@ -2195,7 +2183,6 @@ async function submitIncome(event) {
         timestamp: new Date().toISOString()
     };
 
-    // STEP 1: Instant local update
     if (isEdit) {
         const idx = allIncomeData.findIndex(
             item => String(item.id) === String(editId)
@@ -2207,7 +2194,6 @@ async function submitIncome(event) {
         showToast(`Income ${formatINR(amountNum)} added!`, 'success');
     }
 
-    // STEP 2: Instant UI render
     const tableContainer = document.getElementById('incomeTableContainer');
     const toggleBtn      = document.getElementById('toggleIncomeRecordsBtn');
     if (tableContainer) {
@@ -2225,7 +2211,6 @@ async function submitIncome(event) {
         btn.textContent = '➕ Add Income';
     }
 
-       // STEP 3: Background Google Sheet sync
     const activeUser = getActiveUser();
     try {
         await queueSyncAction({
@@ -2244,6 +2229,8 @@ async function submitIncome(event) {
     } catch (err) {
         console.warn('Income sheet sync delayed:', err.message);
     }
+}
+
 
 
 // ============================================================
@@ -2293,7 +2280,6 @@ async function submitExpense(event) {
         timestamp  : new Date().toISOString()
     };
 
-    // STEP 1: Instant local update
     if (isEdit) {
         const idx = allExpenseData.findIndex(
             item => String(item.id) === String(editId)
@@ -2305,7 +2291,6 @@ async function submitExpense(event) {
         showToast(`Expense ${formatINR(amountNum)} added!`, 'success');
     }
 
-    // STEP 2: Instant UI render
     const tableContainer = document.getElementById('expenseTableContainer');
     const toggleBtn      = document.getElementById('toggleExpenseRecordsBtn');
     if (tableContainer) {
@@ -2323,7 +2308,7 @@ async function submitExpense(event) {
         btn.textContent = '➕ Add Expense';
     }
 
-    // STEP 3: Background Google Sheet sync
+    const activeUser = getActiveUser();
     try {
         await queueSyncAction({
             action     : isEdit ? 'updateExpense' : 'addExpense',
@@ -2334,7 +2319,9 @@ async function submitExpense(event) {
             category   : category,
             amount     : amountNum,
             month      : monthName,
-            monthNum   : monthNum
+            monthNum   : monthNum,
+            username   : activeUser.username,
+            role       : activeUser.role
         });
     } catch (err) {
         console.warn('Expense sheet sync delayed:', err.message);
@@ -2524,12 +2511,6 @@ function updateDashboard() {
     safeText('dashTotalIncome',  formatINR(totalIncome));
     safeText('dashTotalExpense', formatINR(totalExpense));
     safeText('dashFinalBalance', formatINR(balance));
-    // ✅ Agar summary hidden hai to values calculate hoti rahe
-// but grid hidden hi rahe — button state preserve karo
-const dashGrid = document.getElementById('dashSummaryGrid');
-if (dashGrid && dashGrid.style.display === 'none') {
-    // Values update ho gayi — grid hidden hi rahega
-}
 
     safeText('dashIncomeCount',
         `${incomeData.length} ${incomeData.length === 1 ? 'entry' : 'entries'}`);
@@ -2636,38 +2617,34 @@ function renderIncomeTable() {
     const yearFilter = filterEl ? filterEl.value : 'all';
     if (!tbody) return;
 
-   let data = [...allIncomeData];
+    let data = [...allIncomeData];
 
-// Year filter
-if (yearFilter !== 'all') {
-    data = data.filter(item => parseInt(item.year) === parseInt(yearFilter));
-}
+    if (yearFilter !== 'all') {
+        data = data.filter(item => parseInt(item.year) === parseInt(yearFilter));
+    }
 
-// Category filter
-const incomeCatEl     = document.getElementById('incomeCategoryFilter');
-const incomeCatFilter = incomeCatEl ? incomeCatEl.value : 'all';
-if (incomeCatFilter !== 'all') {
-    data = data.filter(item =>
-        item.category &&
-        item.category.toLowerCase() === incomeCatFilter.toLowerCase()
-    );
-}
-
+    const incomeCatEl     = document.getElementById('incomeCategoryFilter');
+    const incomeCatFilter = incomeCatEl ? incomeCatEl.value : 'all';
+    if (incomeCatFilter !== 'all') {
+        data = data.filter(item =>
+            item.category &&
+            item.category.toLowerCase() === incomeCatFilter.toLowerCase()
+        );
+    }
 
     const badge = document.getElementById('incomeRecordCountBadge');
     if (badge) {
         const count = yearFilter === 'all' ? allIncomeData.length : data.length;
         badge.textContent = `${count} ${count === 1 ? 'Record' : 'Records'}`;
     }
-    // Total amount badge — always all records
-const incomeTotalBadge = document.getElementById('incomeTotalAmountBadge');
-if (incomeTotalBadge) {
-    const totalAll = allIncomeData.reduce(
-        (s, i) => s + (parseFloat(i.amount) || 0), 0
-    );
-    incomeTotalBadge.textContent = `Total: ${formatINR(totalAll)}`;
-}
 
+    const incomeTotalBadge = document.getElementById('incomeTotalAmountBadge');
+    if (incomeTotalBadge) {
+        const totalAll = allIncomeData.reduce(
+            (s, i) => s + (parseFloat(i.amount) || 0), 0
+        );
+        incomeTotalBadge.textContent = `Total: ${formatINR(totalAll)}`;
+    }
 
     data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -2738,23 +2715,20 @@ function renderExpenseTable() {
     const yearFilter = filterEl ? filterEl.value : 'all';
     if (!tbody) return;
 
-   let data = [...allExpenseData];
+    let data = [...allExpenseData];
 
-// Year filter
-if (yearFilter !== 'all') {
-    data = data.filter(item => parseInt(item.year) === parseInt(yearFilter));
-}
+    if (yearFilter !== 'all') {
+        data = data.filter(item => parseInt(item.year) === parseInt(yearFilter));
+    }
 
-// Category filter
-const expenseCatEl     = document.getElementById('expenseCategoryFilter');
-const expenseCatFilter = expenseCatEl ? expenseCatEl.value : 'all';
-if (expenseCatFilter !== 'all') {
-    data = data.filter(item =>
-        item.category &&
-        item.category.toLowerCase() === expenseCatFilter.toLowerCase()
-    );
-}
-
+    const expenseCatEl     = document.getElementById('expenseCategoryFilter');
+    const expenseCatFilter = expenseCatEl ? expenseCatEl.value : 'all';
+    if (expenseCatFilter !== 'all') {
+        data = data.filter(item =>
+            item.category &&
+            item.category.toLowerCase() === expenseCatFilter.toLowerCase()
+        );
+    }
 
     const badge = document.getElementById('expenseRecordCountBadge');
     if (badge) {
@@ -2762,14 +2736,13 @@ if (expenseCatFilter !== 'all') {
         badge.textContent = `${count} ${count === 1 ? 'Record' : 'Records'}`;
     }
 
-    // Total amount badge — always all records
-const expenseTotalBadge = document.getElementById('expenseTotalAmountBadge');
-if (expenseTotalBadge) {
-    const totalAll = allExpenseData.reduce(
-        (s, i) => s + (parseFloat(i.amount) || 0), 0
-    );
-    expenseTotalBadge.textContent = `Total: ${formatINR(totalAll)}`;
-}
+    const expenseTotalBadge = document.getElementById('expenseTotalAmountBadge');
+    if (expenseTotalBadge) {
+        const totalAll = allExpenseData.reduce(
+            (s, i) => s + (parseFloat(i.amount) || 0), 0
+        );
+        expenseTotalBadge.textContent = `Total: ${formatINR(totalAll)}`;
+    }
 
     data.sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -2885,6 +2858,7 @@ function syncYearFiltersFromData() {
         }
     });
 }
+
 // ============================================================
 // GENERATE REPORTS
 // ============================================================
@@ -2908,26 +2882,18 @@ function generateReport() {
     );
     const yearBalance = yearTotalIncome - yearTotalExpense;
 
-    // ✅ Summary Title
     safeText('yearSummaryTitle',
         selectedYear === 'all'
             ? '📊 All Years Summary'
             : `📊 ${selectedYear} Summary`
     );
 
-    // ✅ Summary Cards — Income
     const incomeEl = document.getElementById('reportYearIncome');
-    if (incomeEl) {
-        incomeEl.textContent = formatINR(yearTotalIncome);
-    }
+    if (incomeEl) incomeEl.textContent = formatINR(yearTotalIncome);
 
-    // ✅ Summary Cards — Expense
     const expenseEl = document.getElementById('reportYearExpense');
-    if (expenseEl) {
-        expenseEl.textContent = formatINR(yearTotalExpense);
-    }
+    if (expenseEl) expenseEl.textContent = formatINR(yearTotalExpense);
 
-    // ✅ Summary Cards — Balance
     const balEl = document.getElementById('reportYearBalance');
     if (balEl) {
         balEl.textContent = formatINR(yearBalance);
@@ -2935,23 +2901,18 @@ function generateReport() {
         if (yearBalance < 0) balEl.classList.add('negative');
     }
 
-    // ✅ Monthly Report Title
     safeText('monthlyReportTitle',
         selectedYear === 'all'
             ? '📅 Monthly Report — All Years'
             : `📅 Monthly Report — ${selectedYear}`
     );
 
-    // ✅ Monthly Table
     generateMonthlyTable(selectedYear, yearIncomeData, yearExpenseData);
-
-    // ✅ Month-Year Filter refresh
     populateCategoryYearDropdown();
     generateCategoryReport();
     populateMonthYearFilterDropdown();
     generateMonthYearReport();
 }
-
 
 // ============================================================
 // MONTHLY TABLE
@@ -3275,8 +3236,7 @@ function generateCategoryReport() {
             grandTotal    += d.total;
             grandCount    += d.count;
             const amtClass = isIncome ? 'amount-positive' : 'amount-negative';
-            rows +=
-            `<tr>
+            rows += `<tr>
                 <td style="font-weight:700;color:#0b2545;">
                     ${monthName} ${yearFilter}
                 </td>
@@ -3315,6 +3275,7 @@ function generateCategoryReport() {
             </tr>`;
     }
 }
+
 // ============================================================
 // POPULATE MONTH-YEAR FILTER YEAR DROPDOWN
 // ============================================================
@@ -3358,14 +3319,12 @@ function generateMonthYearReport() {
     let incomeData  = [...allIncomeData];
     let expenseData = [...allExpenseData];
 
-    // Filter by Year
     if (selectedYear !== 'all') {
         const yr    = parseInt(selectedYear);
         incomeData  = incomeData.filter(i  => parseInt(i.year) === yr);
         expenseData = expenseData.filter(i => parseInt(i.year) === yr);
     }
 
-    // Filter by Month
     if (selectedMonth !== 'all') {
         const mn    = parseInt(selectedMonth);
         incomeData  = incomeData.filter(i =>
@@ -3375,8 +3334,7 @@ function generateMonthYearReport() {
         );
         expenseData = expenseData.filter(i =>
             parseInt(i.monthNum) === mn ||
-            (i.month && i.month.toLowerCase() ===
-             MONTHS[mn - 1].toLowerCase())
+            (i.month &&              i.month.toLowerCase() === MONTHS[mn - 1].toLowerCase())
         );
     }
 
@@ -3432,14 +3390,15 @@ function toggleRecords(type) {
         const btn       = document.getElementById('toggleReportRecordsBtn');
         if (container.style.display === 'none') {
             container.style.display = 'block';
-            if (btn) btn.innerHTML  = '🙈 Hide Records';
+                       if (btn) btn.innerHTML  = '🙈 Hide Records';
         } else {
             container.style.display = 'none';
             if (btn) btn.innerHTML  = '👁️ Show Records';
         }
     }
 }
-    // ============================================================
+
+// ============================================================
 // TOGGLE DASHBOARD SUMMARY
 // ============================================================
 function toggleDashSummary() {
@@ -3473,7 +3432,6 @@ function toggleReportSummary() {
     }
 }
 
-
 // ============================================================
 // INIT APP
 // ============================================================
@@ -3505,15 +3463,13 @@ async function initApp() {
         setLoading(false);
     }
 
-    // ✅ Auto background sync — every 30 seconds, silent
+    // Auto background sync — every 30 seconds, silent
     setInterval(async function() {
-        // Only sync if no pending queue actions
         if (syncQueue.length === 0) {
             await refreshAllData();
         }
     }, 30000);
 }
-
 
 // ============================================================
 // DOM READY
@@ -3522,11 +3478,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const loggedIn = checkLoginStatus();
     if (loggedIn) initApp();
 });
-
-
 </script>
 
 </body>
 </html>
-
-
