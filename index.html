@@ -1890,19 +1890,22 @@ function updateHeaderUserInfo() {
     const switcherEl   = document.getElementById('adminViewSwitcher');
 
     if (loggedInRole === 'admin') {
-        // Show dropdown for admin
+        // Show dropdown, hide badge
         if (switcherEl) switcherEl.style.display = 'block';
-        // Reset to admin view on fresh login
+        if (badgeEl)    badgeEl.style.display     = 'none';
         currentAdminView = 'admin';
         const dropdown   = document.getElementById('adminViewDropdown');
         if (dropdown) dropdown.value = 'admin';
-        if (badgeEl) badgeEl.textContent = '👑 Admin';
     } else {
-        // Hide dropdown for normal users
-        if (switcherEl) switcherEl.style.display = 'none';
-        if (badgeEl) badgeEl.textContent = `👤 ${loggedInUser}`;
+        // Hide dropdown, show badge
+        if (switcherEl) switcherEl.style.display  = 'none';
+        if (badgeEl) {
+            badgeEl.style.display  = 'inline-block';
+            badgeEl.textContent    = `👤 ${loggedInUser}`;
+        }
     }
 }
+
 
 
 
