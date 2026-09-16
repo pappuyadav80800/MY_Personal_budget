@@ -790,7 +790,7 @@
             <span id="loginErrorMsg">Invalid username or password</span>
         </div>
 
-        <form id="loginForm" onsubmit="handleLogin(event)">
+        <form id="loginForm" onsubmit="return handleLogin(event)">
             <div class="login-form-group">
                 <label>Username</label>
                 <div class="login-input-wrap">
@@ -1707,7 +1707,7 @@ const safeSetValue   = safeVal;
 const safeSetDisplay = safeDisp;
 
 // ============================================================
-// GLOBAL AUTHENTICATION & LOGIN HANDLER
+// BULLETPROOF LOGIN & AUTHENTICATION HANDLER
 // ============================================================
 const USER_ACCOUNTS = {
     'admin': { password: 'admin123', role: 'admin', label: 'Administrator' },
@@ -1745,15 +1745,15 @@ function checkLoginStatus() {
     }
 }
 
-// Directly attached to window to guarantee execution
-window.handleLogin = function(event) {
-    if (event && event.preventDefault) {
-        event.preventDefault();
+function handleLogin(event) {
+    // 1. Prevent native form submission / page reload immediately
+    if (event) {
+        if (event.preventDefault) event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
     }
 
-    const errorBox = document.getElementById('loginError');
-    const errorMsg = document.getElementById('loginErrorMsg');
-
+    const errorBox   = document.getElementById('loginError');
+    const errorMsg   = document.getElementById('loginErrorMsg');
     const usernameEl = document.getElementById('loginUsername');
     const passwordEl = document.getElementById('loginPassword');
 
@@ -1769,45 +1769,39 @@ window.handleLogin = function(event) {
     const account = USER_ACCOUNTS[usernameInput];
 
     if (account && account.password === passwordInput) {
-        // 1. Save Session
+        // 2. Save Session Data
         sessionStorage.setItem('bm_logged_in', 'true');
         sessionStorage.setItem('bm_username', usernameInput);
         sessionStorage.setItem('bm_role', account.role);
 
-        // 2. Hide Login Overlay Immediately
+        // 3. Immediately Hide Login Overlay & Show Dashboard UI
         if (errorBox) errorBox.classList.remove('show');
-        const overlay = document.getElementById('loginOverlay');
-        if (overlay) overlay.classList.add('hidden');
+        const loginOverlay = document.getElementById('loginOverlay');
+        if (loginOverlay) loginOverlay.classList.add('hidden');
 
         updateHeaderUserInfo();
 
-        // 3. Clear Input Fields
+        // 4. Reset Inputs AFTER overlay is hidden
         if (usernameEl) usernameEl.value = '';
         if (passwordEl) passwordEl.value = '';
 
-        // 4. Initialize Data
+        // 5. Reset local memory & load app data safely
         allIncomeData  = [];
         allExpenseData = [];
         dataLoaded     = false;
 
-        try {
-            if (typeof initApp === 'function') {
-                initApp();
-            }
-        } catch (e) {
-            console.error('Init App Error:', e);
-        }
+        initApp();
+        return false;
 
     } else {
-        // Invalid details - Keep typed details on screen
+        // Invalid Login: Show error without clearing typing fields
         if (errorBox) errorBox.classList.add('show');
         if (errorMsg) errorMsg.textContent = 'Invalid username or password. Please try again.';
+        return false;
     }
+}
 
-    return false;
-};
-
-window.handleLogout = function() {
+function handleLogout() {
     if (!confirm('Are you sure you want to logout?')) return;
 
     sessionStorage.removeItem('bm_logged_in');
@@ -1821,26 +1815,42 @@ window.handleLogout = function() {
     const overlay = document.getElementById('loginOverlay');
     if (overlay) overlay.classList.remove('hidden');
 
-    if (typeof showToast === 'function') {
-        showToast('Logged out successfully', 'success');
-    }
-};
-
-
-function handleLogout() {
-    if (!confirm('Are you sure you want to logout?')) return;
-    sessionStorage.removeItem('bm_logged_in');
-    sessionStorage.removeItem('bm_username');
-    sessionStorage.removeItem('bm_role');
-    
-    // Clear in-memory data
-    allIncomeData  = [];
-    allExpenseData = [];
-    dataLoaded     = false;
-
-    document.getElementById('loginOverlay').classList.remove('hidden');
     showToast('Logged out successfully', 'success');
 }
+
+// ============================================================
+// SAFE & UNBLOCKABLE INIT APP
+// ============================================================
+async function initApp() {
+    setLoading(true);
+
+    try {
+        if (typeof populateYearDropdowns === 'function') populateYearDropdowns();
+        if (typeof populateCategoryDropdown === 'function') populateCategoryDropdown();
+        if (typeof setDefaultDates === 'function') setDefaultDates();
+        if (typeof syncYearFromDate === 'function') {
+            syncYearFromDate('incomeDate', 'incomeYear');
+            syncYearFromDate('expenseDate', 'expenseYear');
+        }
+
+        // Fetch user-isolated data
+        await fetchAllData(true);
+
+        if (typeof syncYearFiltersFromData === 'function') syncYearFiltersFromData();
+        if (typeof updateDashboard === 'function') updateDashboard();
+        if (typeof renderIncomeTable === 'function') renderIncomeTable();
+        if (typeof renderExpenseTable === 'function') renderExpenseTable();
+        if (typeof generateReport === 'function') generateReport();
+
+    } catch (err) {
+        console.error('Init error:', err);
+        setSyncStatus('error');
+        showToast('App init issue: ' + err.message, 'warning');
+    } finally {
+        setLoading(false); // Guarantees loading spinner is removed
+    }
+}
+
 
 
 // ============================================================
