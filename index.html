@@ -839,10 +839,38 @@
                 <span>Personal Finance Tracker</span>
             </div>
         </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-    <span id="headerUserBadge" style="background:rgba(255,255,255,0.15); border:1px solid rgba(251,191,36,0.4); color:#fbbf24; font-size:12px; font-weight:700; padding:4px 10px; border-radius:12px;">
+       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+
+    <!-- Admin View Switch Tabs (Only visible to admin) -->
+    <div id="adminViewSwitcher" style="display:none; background:rgba(255,255,255,0.1);
+         border:1px solid rgba(251,191,36,0.4); border-radius:20px;
+         padding:3px; gap:3px; display:none;">
+        <button onclick="switchAdminView('admin')" id="viewBtn-admin"
+            style="padding:4px 12px; border-radius:16px; border:none;
+                   font-size:12px; font-weight:700; cursor:pointer;
+                   background:#fbbf24; color:#0b2545;">
+            👑 Admin
+        </button>
+        <button onclick="switchAdminView('user1')" id="viewBtn-user1"
+            style="padding:4px 12px; border-radius:16px; border:none;
+                   font-size:12px; font-weight:700; cursor:pointer;
+                   background:transparent; color:#ffffff;">
+            👤 User 1
+        </button>
+        <button onclick="switchAdminView('user2')" id="viewBtn-user2"
+            style="padding:4px 12px; border-radius:16px; border:none;
+                   font-size:12px; font-weight:700; cursor:pointer;
+                   background:transparent; color:#ffffff;">
+            👤 User 2
+        </button>
+    </div>
+
+    <span id="headerUserBadge" style="background:rgba(255,255,255,0.15); border:1px solid rgba(251,191,36,0.4);
+               color:#fbbf24; font-size:12px; font-weight:700; padding:4px 10px;
+               border-radius:12px;">
         👤 Admin
     </span>
+
     <div class="header-sync">
         <div class="sync-dot" id="syncDot"></div>
         <span id="syncStatus">Connected</span>
@@ -851,8 +879,6 @@
         🚪 Logout
     </button>
 </div>
-
-
     </div>
 </header>
 
