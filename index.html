@@ -1536,6 +1536,35 @@
 
 <!-- ==================== JAVASCRIPT ==================== -->
 <script>
+    
+// ============================================================
+// SAFE SESSION STORAGE (Naya Code - Yahan Paste Karein)
+// ============================================================
+const _sessionStore = {};
+
+function setSessionItem(key, val) {
+    try {
+        sessionStorage.setItem(key, val);
+    } catch (e) {
+        _sessionStore[key] = val;
+    }
+}
+
+function getSessionItem(key) {
+    try {
+        return sessionStorage.getItem(key) || _sessionStore[key] || null;
+    } catch (e) {
+        return _sessionStore[key] || null;
+    }
+}
+
+function removeSessionItem(key) {
+    try {
+        sessionStorage.removeItem(key);
+    } catch (e) {}
+    delete _sessionStore[key];
+}
+
 // ============================================================
 // SYNC QUEUE & RETRY SYSTEM
 // ============================================================
